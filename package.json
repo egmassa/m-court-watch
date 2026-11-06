@@ -1,0 +1,6 @@
+{
+  "name": "mitaka-court-watch",
+  "private": true,
+  "scripts": { "watch": "node watch.js" },
+  "dependencies": { "js-yaml": "^4.1.0" }
+}
