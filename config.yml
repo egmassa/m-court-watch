@@ -12,7 +12,7 @@ facilities:
     exclude_courts: [6]   # 監視しないコート番号
 
 # 監視する曜日(月 火 水 木 金 土 日)
-weekdays: [月, 火, 水, 木, 金]
+weekdays: [月, 火, 水, 木, 金, 土, 日]
 
 # 祝日を除くか(true=除く)
 exclude_holidays: true
