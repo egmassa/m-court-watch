@@ -18,7 +18,7 @@ weekdays: [月, 火, 水, 木, 金]
 exclude_holidays: true
 
 # この時刻以降に始まる枠だけ通知
-time_from: "16:00"
+time_from: "18:00"
 
 # 今日から何日先まで見るか
 days_ahead: 30
