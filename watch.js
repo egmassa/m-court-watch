@@ -173,8 +173,13 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
     const mo = Number((e.match(/ (\d+)月:/) || [])[1]);
     return f && k.startsWith(f.room_id + '|') && Number(k.split('|')[1].slice(5, 7)) === mo;
   })) : [];
-  fs.writeFileSync(STATE_FILE, JSON.stringify({
-    updated: new Date().toISOString(),
-    keys: [...new Set([...hits.map(h => h.key), ...failedPrefixes])],
-  }, null, 1));
+  // 設定ページ(index.html)で表示する一覧。中身が変わったときだけ保存する
+  const keys = [...new Set([...hits.map(h => h.key), ...failedPrefixes])].sort();
+  const prevSlots = prev.slots || [];
+  const keep = prevSlots.filter(s => failedPrefixes.includes(s.key) && !hits.some(h => h.key === s.key));
+  const slots = [...hits, ...keep].map(({ facility, date, court, time, key }) => ({ facility, date, court, time, key }))
+    .sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court));
+  const same = JSON.stringify(keys) === JSON.stringify([...(prev.keys || [])].sort()) && prev.slots;
+  if (same) { log('空き状況に変化なし(保存なし)'); return; }
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ updated: new Date().toISOString(), keys, slots }, null, 1));
 })();
