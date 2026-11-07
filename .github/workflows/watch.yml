@@ -1,0 +1,44 @@
+name: コート空き監視
+
+on:
+  schedule:
+    # 日本時間 6:07〜23:37 の30分おき(深夜0〜6時は停止)
+    # GitHubの時刻はUTC(日本時間-9時間)なので、0-14時 と 21-23時 を指定
+    - cron: "7,37 0-14,21-23 * * *"
+  workflow_dispatch: {}   # 「Run workflow」ボタンで手動実行
+
+permissions:
+  contents: write         # 前回結果(state.json)を保存するため
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 準備
+        run: npm install --no-audit --no-fund
+
+      - name: 空きをチェック
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: node watch.js
+
+      - name: 前回結果を保存
+        if: always()
+        run: |
+          [ -f state.json ] || exit 0
+          git config user.name "court-watch-bot"
+          git config user.email "court-watch-bot@users.noreply.github.com"
+          git add state.json
+          git diff --cached --quiet || (git commit -m "空き状況を更新" && git push)
