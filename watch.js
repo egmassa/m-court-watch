@@ -25,6 +25,8 @@ const fromMin = toMin(cfg.time_from || '00:00');
 const daysAhead = Number(cfg.days_ahead || 30);
 // LINEに日時を並べる上限(これを超えたら件数の要約だけ送る)
 const LINE_MAX = Number(cfg.line_max_items || 10);
+// 取られた枠を設定ページに取り消し線で残す時間
+const GONE_KEEP_HOURS = Number(cfg.gone_keep_hours || 24);
 
 const log = (...a) => console.log(...a);
 const pad = n => String(n).padStart(2, '0');
@@ -251,8 +253,31 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
   if (line && line.limit && line.used >= line.limit && !line.error) line.error = '今月のLINE無料枠を使い切りました。月末まで通知は届きません';
   if (line && line.limit && line.used < line.limit && /使い切りました|上限/.test(line.error || '') && !lineError) line.error = null;
 
+  // 取られた枠(前回あって今回なくなった枠)。条件を変えて対象外になっただけの枠は含めない
+  const nowIso = new Date().toISOString();
+  const stillTarget = sl => {
+    const f = facilities.find(x => sl.key && sl.key.startsWith(x.room_id + '|'));
+    if (!f) return false;
+    const num = ((sl.court || '').match(/(\d+)/) || [])[1];
+    if (num && (f.exclude_courts || []).map(Number).includes(Number(num))) return false;
+    if (sl.date < startStr || sl.date > endStr || (dateFromStr && sl.date < dateFromStr)) return false;
+    if (!weekdays.includes(new Date(sl.date + 'T00:00:00Z').getUTCDay())) return false;
+    if (holidays[sl.date]) return false;
+    return toMin(String(sl.time).split('-')[0]) >= fromMin;
+  };
+  const nowKeys = new Set(slots.map(x => x.key));
+  const goneNow = reset ? [] : prevSlots.filter(x => x.key && !nowKeys.has(x.key) && stillTarget(x))
+    .map(x => ({ facility: x.facility, date: x.date, court: x.court, time: x.time, key: x.key, goneAt: nowIso }));
+  const limit = Date.now() - GONE_KEEP_HOURS * 3600e3;
+  const gone = [...(reset ? [] : (prev.gone || [])), ...goneNow]
+    .filter((x, i, a) => !nowKeys.has(x.key) && x.date >= startStr && new Date(x.goneAt) >= limit &&
+      a.findIndex(y => y.key === x.key) === i)
+    .sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court));
+  if (goneNow.length) log(`取られた枠: ${goneNow.length} 枠`);
+
   const same = JSON.stringify(keys) === JSON.stringify([...(prev.keys || [])].sort()) && prev.slots &&
-    JSON.stringify(line) === JSON.stringify(prev.line || null);
+    JSON.stringify(line) === JSON.stringify(prev.line || null) &&
+    JSON.stringify(gone) === JSON.stringify(prev.gone || []);
   if (same) { log('空き状況に変化なし(保存なし)'); return; }
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ updated: new Date().toISOString(), keys, slots, line }, null, 1));
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ updated: nowIso, keys, slots, gone, line }, null, 1));
 })();

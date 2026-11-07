@@ -32,7 +32,7 @@ header h1{font-size:19px;margin:0;flex:1}
   clip-path:inset(0 60% 0 0)}
 .ball::after{clip-path:inset(0 0 0 60%)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 16px;margin-bottom:14px}
-.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap}
 .card h2 .meta{margin-left:auto;font-size:12px;font-weight:normal;color:var(--sub)}
 .muted{color:var(--sub);font-size:13px}
 .status{font-size:12px;color:var(--sub);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -80,7 +80,9 @@ details[open] summary::before{content:"▾ "}
 details ol{padding-left:20px;margin:8px 0;font-size:13px;color:var(--sub)}
 a{color:var(--accent)}
 /* カレンダー */
-.viewtg{display:flex;gap:4px;margin-left:auto}
+.viewtg{display:flex;gap:4px;margin-left:auto;flex:none}
+.viewtg button{white-space:nowrap}
+#count{white-space:nowrap}
 .viewtg button{min-height:30px;padding:3px 10px;font-size:12px;border-radius:999px}
 .viewtg button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:10px}
@@ -112,6 +114,11 @@ a{color:var(--accent)}
 .fac .slot{margin-left:2px}
 .bookhint{font-size:11px;color:var(--sub);margin-top:8px}
 .qhelp{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
+/* 埋まった枠 */
+.slot.gone .t,.slot.gone .f{text-decoration:line-through;color:var(--sub);font-weight:normal}
+.gtag{font-size:11px;color:var(--err);white-space:nowrap}
+.cd.goneonly{background:var(--chip);cursor:pointer}
+.cd .g{font-size:10px;color:var(--sub)}
 /* LINE残り通数 */
 .quota{margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--bg)}
 .qtxt{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
@@ -350,7 +357,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const { text } = await getFile('state.json');
       const st = JSON.parse(text);
       renderLine(st.line);
-      slotData = st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; });
+      slotData = (st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; }))
+        .concat((st.gone || []).map(g => ({ ...g, gone: true })));
     } catch (e) {
       slotData = null;
       $('count').textContent = '';
@@ -399,10 +407,14 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     list.forEach(s => (byFac[s.facility] ||= []).push(s));
     return Object.entries(byFac).map(([f, ls]) => {
       const room = roomOf(ls[0]), ds = ls[0].date;
-      const rows = groupDay(ls).map(g =>
-        `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('');
+      const act = ls.filter(x => !x.gone), gone = ls.filter(x => x.gone);
+      const goneTime = g => { const t = gone.filter(x => x.time === g.time).map(x => x.goneAt).sort()[0]; return t ? hm(t).split(' ')[1] : ''; };
+      const rows = groupDay(act).map(g =>
+        `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('') +
+        groupDay(gone).map(g =>
+        `<div class="slot gone"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
       return `<div class="fac"><div class="fh"><span>${shortFac(f)}</span>` +
-        (room ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>` : '') +
+        (room && act.length ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>` : '') +
         `</div>${rows}</div>`;
     }).join('');
   };
@@ -417,7 +429,9 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     const byDay = {};
     future.forEach(s => (byDay[s.date] ||= []).push(s));
     const days = Object.keys(byDay).sort();
-    $('count').textContent = future.length ? `${future.length}枠・${days.length}日` : '';
+    const active = future.filter(s => !s.gone), goneN = future.length - active.length;
+    const actDays = new Set(active.map(s => s.date)).size;
+    $('count').textContent = (active.length ? `${active.length}枠・${actDays}日` : '空きなし') + (goneN ? `(埋まった ${goneN})` : '');
     if (!future.length) { $('slots').innerHTML = '<div class="empty">条件に合う空きはありません</div>'; return; }
 
     if (view === 'list') {
@@ -432,7 +446,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     const start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
     const end = new Date(last); end.setDate(end.getDate() + (7 - end.getDay()) % 7);
     const wdOn = cfgSaved.weekdays;
-    if (!selDay || !byDay[selDay]) selDay = days[0];
+    if (!selDay || !byDay[selDay]) selDay = days.find(d => byDay[d].some(s => !s.gone)) || days[0];
 
     let html = '<div class="cal">' + ['月', '火', '水', '木', '金', '土', '日'].map((w, i) =>
       `<div class="h ${i === 5 ? 'sat' : i === 6 ? 'sun' : ''}">${w}</div>`).join('');
@@ -447,20 +461,21 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const out = d < today || d > last;
       const off = !out && wdOn && !wdOn.includes(WD[dow]);
       const cls = ['cd', dow === 6 ? 'sat' : '', dow === 0 ? 'sun' : '', holidays[ds] ? 'hol' : '', ds === todayS ? 'today' : '',
-        out ? 'out' : '', off ? 'off' : '', list ? 'has' : '', list && ds === selDay ? 'sel' : ''].join(' ');
+        out ? 'out' : '', off ? 'off' : '', list && list.some(s => !s.gone) ? 'has' : list ? 'goneonly' : '', list && ds === selDay ? 'sel' : ''].join(' ');
       const label = d.getDate() === 1 ? `${d.getMonth() + 1}/1` : d.getDate();
       let inner = `<span class="n">${label}</span>`;
       if (list) {
-        const byFac = {};
-        list.forEach(s => byFac[s.facility] = (byFac[s.facility] || 0) + 1);
+        const byFac = {}, gN = list.filter(s => s.gone).length;
+        list.filter(s => !s.gone).forEach(s => byFac[s.facility] = (byFac[s.facility] || 0) + 1);
         const facs = Object.entries(byFac);
         inner += facs.slice(0, 2).map(([f, n]) => `<span class="b">${shortFac(f)}${n > 1 ? n : ''}</span>`).join('');
         if (facs.length > 2) inner += `<span class="more">+${facs.length - 2}</span>`;
+        if (gN) inner += `<span class="g">埋${gN}</span>`;
       }
       html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
                    : `<div class="${cls}">${inner}</div>`;
     }
-    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。タップで下に詳細</div>';
+    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。「埋」は直近24時間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
       '<div class="bookhint">「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます</div>';
     $('slots').innerHTML = html;
