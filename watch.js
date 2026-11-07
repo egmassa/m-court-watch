@@ -152,11 +152,15 @@ async function lineQuota() {
   if (!token) return null;
   try {
     const h = { headers: { Authorization: `Bearer ${token}` } };
-    const [q, c] = await Promise.all([
+    // 友だち数(全員送信1回で使う通数の目安)。LINEの統計は前日分までなので昨日の日付で問い合わせ
+    const y = new Date(Date.now() + 9 * 3600e3 - 86400e3).toISOString().slice(0, 10).replace(/-/g, '');
+    const [q, c, f] = await Promise.all([
       fetch('https://api.line.me/v2/bot/message/quota', h).then(r => r.json()),
       fetch('https://api.line.me/v2/bot/message/quota/consumption', h).then(r => r.json()),
+      fetch(`https://api.line.me/v2/bot/insight/followers?date=${y}`, h).then(r => r.json()).catch(() => ({})),
     ]);
-    return { limit: q.type === 'limited' ? q.value : null, used: c.totalUsage ?? null };
+    const reach = f.status === 'ready' ? (f.targetedReaches ?? (f.followers != null ? f.followers - (f.blocks || 0) : null)) : null;
+    return { limit: q.type === 'limited' ? q.value : null, used: c.totalUsage ?? null, reach };
   } catch (e) { log('LINE使用数の取得に失敗:', e.message); return null; }
 }
 
@@ -239,6 +243,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
   const quota = await lineQuota();
   const month = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
   const prevLine = prev.line || {};
+  if (quota && quota.reach == null && prev.line && prev.line.reach != null) quota.reach = prev.line.reach;
   const line = quota ? { ...quota, month, error: lineError || (fresh.length ? null : (prevLine.month === month ? prevLine.error || null : null)) } : (prev.line || null);
   if (quota) log(`LINE今月の使用数: ${quota.used}${quota.limit ? ' / ' + quota.limit : ''}通`);
   if (line && line.limit && line.used >= line.limit && !line.error) line.error = '今月のLINE無料枠を使い切りました。月末まで通知は届きません';

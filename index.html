@@ -103,6 +103,13 @@ a{color:var(--accent)}
 .detail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .detail .d{font-weight:600}
 .legend{font-size:11px;color:var(--sub);margin-top:6px}
+/* LINE残り通数 */
+.quota{margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--bg)}
+.qtxt{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
+.qtxt b{font-variant-numeric:tabular-nums}
+.qbar{height:6px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.qbar span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.quota.warn .qbar span{background:var(--warn)} .quota.ng .qbar span{background:var(--err)}
 /* トークン未登録のときのボタン */
 body.notoken .needtok{background:transparent!important;color:var(--sub)!important;border:1px dashed var(--line)!important;font-weight:normal}
 body.notoken .needtok::before{content:"🔒 ";font-size:12px}
@@ -129,6 +136,10 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       <button id="resend" class="needtok">全部LINEで再送</button>
       <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener"
          style="align-self:center;margin-left:auto;font-size:14px">予約サイト ↗</a>
+    </div>
+    <div class="quota" id="quotaBar" hidden>
+      <div class="qtxt"><span id="qLabel"></span><span id="qReach" class="muted"></span></div>
+      <div class="qbar"><span id="qFill"></span></div>
     </div>
     <div class="msg" id="runMsg"></div>
   </section>
@@ -315,7 +326,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   }
 
   // ---- 空き一覧(カレンダー / リスト) ----
-  let slotData = null, view = 'cal', selDay = null, cfgSaved = { days: 30, weekdays: null };
+  let lineInfo = null, slotData = null, view = 'cal', selDay = null, cfgSaved = { days: 30, weekdays: null };
   try { view = localStorage.getItem('courtwatch_view') || 'cal'; } catch {}
   let holidays = {};
   fetch('https://holidays-jp.github.io/api/v1/date.json').then(r => r.json()).then(h => { holidays = h; renderSlots(); }).catch(() => {});
@@ -344,11 +355,22 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   function renderLine(l) {
     const el = $('lineStatus');
     if (!l || l.used == null) { el.innerHTML = ''; hideMsg('lineAlert'); return; }
-    const thisMonth = new Date().toISOString().slice(0, 7);
-    if (l.month && l.month !== thisMonth) { el.innerHTML = '<span class="dot ok"></span><span>LINE 今月はまだ送信なし</span>'; hideMsg('lineAlert'); return; }
+    const thisMonth = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
+    if (l.month && l.month !== thisMonth) { l = { ...l, used: 0, error: null }; }
     const rate = l.limit ? l.used / l.limit : 0;
     const cls = l.error || rate >= 1 ? 'ng' : rate >= 0.8 ? 'run' : 'ok';
-    el.innerHTML = `<span class="dot ${cls}"></span><span>LINE 今月 ${l.used}${l.limit ? ' / ' + l.limit : ''}通</span>`;
+    el.innerHTML = '';
+    lineInfo = l;
+    if (l.limit) {
+      const left = Math.max(0, l.limit - l.used);
+      $('quotaBar').hidden = false;
+      $('quotaBar').className = 'quota ' + (cls === 'ng' ? 'ng' : cls === 'run' ? 'warn' : '');
+      $('qLabel').innerHTML = `LINE 今月の残り <b>${left}</b> / ${l.limit}通`;
+      $('qReach').textContent = l.reach ? `全員送信1回で約${l.reach}通` : '';
+      $('qFill').style.width = Math.min(100, rate * 100) + '%';
+    } else {
+      el.innerHTML = `<span class="dot ${cls}"></span><span>LINE 今月 ${l.used}通(上限なし)</span>`;
+    }
     if (l.error) msg('lineAlert', '⚠ ' + l.error, 'ng');
     else if (rate >= 0.8) msg('lineAlert', `LINEの無料枠が残り ${l.limit - l.used}通です。全員送信は1回で人数分を使います。`, 'warn');
     else hideMsg('lineAlert');
@@ -536,7 +558,9 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     if (!token) { msg('runMsg', '再送にはアクセストークンの登録が必要です', 'warn'); $('tokBox').open = true; return; }
     if (!resendArmed) {
       $('resend').textContent = 'もう一度押すと送信';
-      msg('runMsg', '基準をリセットして、条件に合う今の空きをすべてLINEに送ります。全員送信の場合は人数分の通数を使います。', 'warn');
+      const cost = lineInfo && lineInfo.reach ? `約${lineInfo.reach}通` : '友だちの人数分';
+      const left = lineInfo && lineInfo.limit ? `(今月の残り${Math.max(0, lineInfo.limit - lineInfo.used)}通)` : '';
+      msg('runMsg', `今の空きをすべてLINEに送ります。全員送信なら1回で${cost}使います${left}。`, 'warn');
       resendArmed = setTimeout(() => { resendArmed = null; $('resend').textContent = '全部LINEで再送'; hideMsg('runMsg'); }, 5000);
       return;
     }
