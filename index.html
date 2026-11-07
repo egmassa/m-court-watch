@@ -79,6 +79,33 @@ details summary::before{content:"▸ ";color:var(--sub)}
 details[open] summary::before{content:"▾ "}
 details ol{padding-left:20px;margin:8px 0;font-size:13px;color:var(--sub)}
 a{color:var(--accent)}
+/* カレンダー */
+.viewtg{display:flex;gap:4px;margin-left:auto}
+.viewtg button{min-height:30px;padding:3px 10px;font-size:12px;border-radius:999px}
+.viewtg button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:10px}
+.cal .h{font-size:11px;text-align:center;color:var(--sub);padding-bottom:2px}
+.cal .h.sat{color:#2a62c9}.cal .h.sun{color:var(--err)}
+.cd{all:unset;box-sizing:border-box;min-height:58px;border-radius:8px;padding:3px 3px 4px;background:var(--bg);
+  display:flex;flex-direction:column;gap:2px;cursor:default;border:1px solid transparent;min-width:0}
+.cd .n{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums}
+.cd.sat .n{color:#2a62c9}.cd.sun .n,.cd.hol .n{color:var(--err)}
+.cd.today .n{font-weight:700;color:var(--ink)}
+.cd.out{opacity:.35}
+.cd.off{background:transparent}
+.cd.has{background:var(--accent-soft);cursor:pointer}
+.cd.has:hover{border-color:var(--accent)}
+.cd.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.cd .b{font-size:10px;line-height:1.25;background:var(--accent);color:var(--on-accent);border-radius:4px;padding:1px 3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd .more{font-size:10px;color:var(--accent)}
+.mon{grid-column:1/-1;font-size:12px;font-weight:600;color:var(--sub);padding:6px 2px 0}
+.detail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.detail .d{font-weight:600}
+.legend{font-size:11px;color:var(--sub);margin-top:6px}
+/* トークン未登録のときのボタン */
+body.notoken .needtok{background:transparent!important;color:var(--sub)!important;border:1px dashed var(--line)!important;font-weight:normal}
+body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 .lock{font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:8px;padding:6px 10px;margin-bottom:12px}
 </style>
 </head>
@@ -91,13 +118,13 @@ a{color:var(--accent)}
 
   <!-- 空き状況 -->
   <section class="card">
-    <h2>今の空き <span class="meta" id="count"></span></h2>
+    <h2>今の空き <span class="muted" id="count" style="font-weight:normal;font-size:12px"></span><span class="viewtg"><button id="vCal" class="on" type="button">カレンダー</button><button id="vList" type="button">リスト</button></span></h2>
     <div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div>
     <div id="slots" style="margin-top:10px"><div class="empty">読み込み中…</div></div>
     <div class="btns" style="margin-top:12px">
-      <button id="runNow">今すぐチェック</button>
+      <button id="runNow" class="needtok">今すぐチェック</button>
       <button id="reload">表示を更新</button>
-      <button id="resend">全部LINEで再送</button>
+      <button id="resend" class="needtok">全部LINEで再送</button>
       <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener"
          style="align-self:center;margin-left:auto;font-size:14px">予約サイト ↗</a>
     </div>
@@ -143,7 +170,7 @@ a{color:var(--accent)}
     </div>
 
     <div class="btns">
-      <button class="primary" id="save">保存する</button>
+      <button class="primary needtok" id="save">保存する</button>
     </div>
     <div class="msg" id="saveMsg"></div>
   </section>
@@ -278,39 +305,113 @@ a{color:var(--accent)}
       // 既存の除外コート設定を保持
       window.__facDetail = facs;
       savedYaml = buildYaml().text; markDirty();
+      cfgSaved = { days: Number(c.days_ahead || 30), weekdays: (c.weekdays || []).map(String) }; renderSlots();
     } catch (e) {
       renderFacs([]);
       msg('saveMsg', `条件を読み込めませんでした(${e.message})`, 'ng');
     }
   }
 
+  // ---- 空き一覧(カレンダー / リスト) ----
+  let slotData = null, view = 'cal', selDay = null, cfgSaved = { days: 30, weekdays: null };
+  try { view = localStorage.getItem('courtwatch_view') || 'cal'; } catch {}
+  let holidays = {};
+  fetch('https://holidays-jp.github.io/api/v1/date.json').then(r => r.json()).then(h => { holidays = h; renderSlots(); }).catch(() => {});
+
+  const pad2 = n => String(n).padStart(2, '0');
+  const dstr = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const courtShort = c => c.replace('テニスコート', 'コート');
+
   async function loadSlots() {
     try {
       const { text } = await getFile('state.json');
       const st = JSON.parse(text);
-      const slots = st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; });
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const future = slots.filter(s => new Date(s.date + 'T00:00:00') >= today);
-      $('count').textContent = future.length ? `${future.length}枠` : '';
-      if (!future.length) { $('slots').innerHTML = '<div class="empty">条件に合う空きはありません</div>'; return; }
-      const byDay = {};
-      future.forEach(s => {
-        const k = s.date; byDay[k] ||= {};
-        const g = `${s.facility}|${s.time}`;
-        (byDay[k][g] ||= { facility: s.facility, time: s.time, courts: [] }).courts.push(s.court);
-      });
-      $('slots').innerHTML = Object.keys(byDay).sort().map(ds => {
-        const { txt, dow } = jpDate(ds);
-        const rows = Object.values(byDay[ds]).sort((a, b) => a.time.localeCompare(b.time)).map(g =>
-          `<div class="slot"><span class="t">${g.time}</span><span>${shortFac(g.facility)}</span><span class="f">${g.courts.map(c => c.replace('テニスコート', 'コート')).join('・')}</span></div>`).join('');
-        return `<div class="day"><div class="d ${dow === 6 ? 'sat' : dow === 0 ? 'sun' : ''}">${txt}</div>${rows}</div>`;
-      }).join('');
+      slotData = st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; });
     } catch (e) {
+      slotData = null;
+      $('count').textContent = '';
       $('slots').innerHTML = e.status === 404
         ? '<div class="empty">まだ巡回結果がありません</div>'
         : `<div class="empty">読み込めませんでした(${e.message})</div>`;
+      return;
     }
+    renderSlots();
   }
+
+  function groupDay(list) {
+    const g = {};
+    list.forEach(s => { const k = `${s.facility}|${s.time}`; (g[k] ||= { facility: s.facility, time: s.time, courts: [] }).courts.push(s.court); });
+    return Object.values(g).sort((a, b) => a.time.localeCompare(b.time) || a.facility.localeCompare(b.facility));
+  }
+  const rowsHtml = list => groupDay(list).map(g =>
+    `<div class="slot"><span class="t">${g.time}</span><span>${shortFac(g.facility)}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('');
+  const dayHead = ds => { const { txt, dow } = jpDate(ds); return `<div class="d ${dow === 6 ? 'sat' : (dow === 0 || holidays[ds]) ? 'sun' : ''}">${txt}${holidays[ds] ? ' <span class="muted">' + holidays[ds] + '</span>' : ''}</div>`; };
+
+  function renderSlots() {
+    if (!slotData) return;
+    $('vCal').classList.toggle('on', view === 'cal'); $('vList').classList.toggle('on', view === 'list');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayS = dstr(today);
+    const future = slotData.filter(s => s.date >= todayS);
+    const byDay = {};
+    future.forEach(s => (byDay[s.date] ||= []).push(s));
+    const days = Object.keys(byDay).sort();
+    $('count').textContent = future.length ? `${future.length}枠・${days.length}日` : '';
+    if (!future.length) { $('slots').innerHTML = '<div class="empty">条件に合う空きはありません</div>'; return; }
+
+    if (view === 'list') {
+      $('slots').innerHTML = days.map(ds => `<div class="day">${dayHead(ds)}${rowsHtml(byDay[ds])}</div>`).join('');
+      return;
+    }
+
+    // カレンダー: 今週の月曜〜監視期間の最終週の日曜
+    const last = new Date(today); last.setDate(last.getDate() + Number(cfgSaved.days || 30));
+    const lastSlot = new Date(days[days.length - 1] + 'T00:00:00');
+    if (lastSlot > last) last.setTime(lastSlot.getTime());
+    const start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const end = new Date(last); end.setDate(end.getDate() + (7 - end.getDay()) % 7);
+    const wdOn = cfgSaved.weekdays;
+    if (!selDay || !byDay[selDay]) selDay = days[0];
+
+    let html = '<div class="cal">' + ['月', '火', '水', '木', '金', '土', '日'].map((w, i) =>
+      `<div class="h ${i === 5 ? 'sat' : i === 6 ? 'sun' : ''}">${w}</div>`).join('');
+    let curMonth = -1;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const ds = dstr(d), dow = d.getDay(), list = byDay[ds];
+      if (dow === 1) {
+        const wkEnd = new Date(d); wkEnd.setDate(wkEnd.getDate() + 6);
+        const m = curMonth === -1 ? today.getMonth() : wkEnd.getMonth();
+        if (m !== curMonth) { html += `<div class="mon">${m + 1}月</div>`; curMonth = m; }
+      }
+      const out = d < today || d > last;
+      const off = !out && wdOn && !wdOn.includes(WD[dow]);
+      const cls = ['cd', dow === 6 ? 'sat' : '', dow === 0 ? 'sun' : '', holidays[ds] ? 'hol' : '', ds === todayS ? 'today' : '',
+        out ? 'out' : '', off ? 'off' : '', list ? 'has' : '', list && ds === selDay ? 'sel' : ''].join(' ');
+      const label = d.getDate() === 1 ? `${d.getMonth() + 1}/1` : d.getDate();
+      let inner = `<span class="n">${label}</span>`;
+      if (list) {
+        const byFac = {};
+        list.forEach(s => byFac[s.facility] = (byFac[s.facility] || 0) + 1);
+        const facs = Object.entries(byFac);
+        inner += facs.slice(0, 2).map(([f, n]) => `<span class="b">${shortFac(f)}${n > 1 ? n : ''}</span>`).join('');
+        if (facs.length > 2) inner += `<span class="more">+${facs.length - 2}</span>`;
+      }
+      html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
+                   : `<div class="${cls}">${inner}</div>`;
+    }
+    html += '</div><div class="legend">緑の日に空きあり(数字は枠数)。タップで詳細</div>';
+    html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>`;
+    $('slots').innerHTML = html;
+    $('slots').querySelectorAll('button.cd').forEach(b => b.onclick = () => {
+      selDay = b.dataset.d;
+      $('slots').querySelectorAll('.cd.sel').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      $('detail').innerHTML = dayHead(selDay) + rowsHtml(byDay[selDay]);
+    });
+  }
+  const setView = v => { view = v; try { localStorage.setItem('courtwatch_view', v); } catch {} renderSlots(); };
+  $('vCal').onclick = () => setView('cal');
+  $('vList').onclick = () => setView('list');
 
   async function loadRun() {
     try {
@@ -395,6 +496,7 @@ a{color:var(--accent)}
       configSha = r.content.sha;
       window.__facDetail = facs;
       savedYaml = text; markDirty();
+      cfgSaved = { days: Number($('days').value), weekdays: wd }; renderSlots();
       msg('saveMsg', fromRun ? '変更を保存しました。この条件でチェックします。'
         : '保存しました。次の巡回(30分以内)から反映されます。すぐ確かめるなら「今すぐチェック」を押してください。');
       return true;
@@ -415,6 +517,7 @@ a{color:var(--accent)}
   let poll = null, resendArmed = null;
   $('runNow').onclick = () => runCheck(false);
   $('resend').onclick = () => {
+    if (!token) { msg('runMsg', '再送にはアクセストークンの登録が必要です', 'warn'); $('tokBox').open = true; return; }
     if (!resendArmed) {
       $('resend').textContent = 'もう一度押すと送信';
       msg('runMsg', '基準をリセットして、条件に合う今の空きをすべてLINEに送ります。全員送信の場合は人数分の通数を使います。', 'warn');
@@ -455,6 +558,7 @@ a{color:var(--accent)}
   function tokUi() {
     $('tokState').textContent = token ? '(登録済み)' : '(未登録)';
     $('lockNote').hidden = !!token;
+    document.body.classList.toggle('notoken', !token);
     $('repoName').textContent = `${OWNER}/${REPO}`;
   }
   $('tokSave').onclick = async () => {

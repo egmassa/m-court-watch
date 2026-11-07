@@ -23,6 +23,8 @@ const weekdays = (cfg.weekdays || []).map(w => WD.indexOf(String(w)));
 const toMin = s => { const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0); };
 const fromMin = toMin(cfg.time_from || '00:00');
 const daysAhead = Number(cfg.days_ahead || 30);
+// LINEに日時を並べる上限(これを超えたら件数の要約だけ送る)
+const LINE_MAX = Number(cfg.line_max_items || 10);
 
 const log = (...a) => console.log(...a);
 const pad = n => String(n).padStart(2, '0');
@@ -71,6 +73,7 @@ function monthsInRange() {
 async function collect(holidays) {
   const hits = [];
   const errors = [];
+  const seen = new Set();
   for (const f of facilities) {
     const excluded = (f.exclude_courts || []).map(Number);
     for (const [y, m] of monthsInRange()) {
@@ -95,6 +98,9 @@ async function collect(holidays) {
           for (const ts of u.timeslots || []) {
             if (ts.status !== OPEN) continue;
             if (toMin(ts.start_time) < fromMin) continue;
+            const key = `${f.room_id}|${ds}|${u.name}|${ts.start_time}`;
+            if (seen.has(key)) continue; // 月をまたぐデータの重複を除く
+            seen.add(key);
             hits.push({
               facility: f.name, date: ds, court: u.name || '',
               time: `${ts.start_time}-${ts.end_time}`,
@@ -176,12 +182,22 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
     (all.length ? all.map(g => `- ${freshKeys.has(`${g.facility}|${g.date}|${g.time}`) ? '🆕 ' : ''}${g.facility} ${lineOf(g).slice(1)}`).join('\n') : '- なし'));
 
   if (fresh.length) {
-    const byFac = {};
-    group(fresh).forEach(g => (byFac[g.facility] ||= []).push(lineOf(g)));
-    const text = '🎾 コートに空きが出ました\n\n' +
-      Object.entries(byFac).map(([f, ls]) => `【${f}】\n${ls.join('\n')}`).join('\n\n') +
-      (pageUrl ? `\n\n今の空き一覧\n${pageUrl}` : '') +
-      `\n\n予約サイト\n${SITE}`;
+    const links = (pageUrl ? `\n\n今の空き一覧\n${pageUrl}` : '') + `\n\n予約サイト\n${SITE}`;
+    let text;
+    if (fresh.length > LINE_MAX) {
+      // 多いときは要約だけ(詳しくは一覧ページで)
+      const cnt = {};
+      fresh.forEach(h => cnt[h.facility] = (cnt[h.facility] || 0) + 1);
+      const dates = fresh.map(h => h.date).sort();
+      text = `🎾 新しい空きが ${fresh.length}枠 出ました\n` +
+        Object.entries(cnt).map(([f, n]) => `${f} ${n}枠`).join('・') +
+        `\n(${label(dates[0])}〜${label(dates[dates.length - 1])})` + links;
+    } else {
+      const byFac = {};
+      group(fresh).forEach(g => (byFac[g.facility] ||= []).push(lineOf(g)));
+      text = '🎾 コートに空きが出ました\n\n' +
+        Object.entries(byFac).map(([f, ls]) => `【${f}】\n${ls.join('\n')}`).join('\n\n') + links;
+    }
     await pushLine(text);
   }
 
