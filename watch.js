@@ -208,7 +208,9 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
     (all.length ? all.map(g => `- ${freshKeys.has(`${g.facility}|${g.date}|${g.time}`) ? '🆕 ' : ''}${g.facility} ${lineOf(g).slice(1)}`).join('\n') : '- なし'));
 
   if (fresh.length) {
-    const links = (pageUrl ? `\n\n今の空き一覧\n${pageUrl}` : '') + `\n\n予約サイト\n${SITE}`;
+    // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
+    const ext = u => u + (u.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
+    const links = (pageUrl ? `\n\n今の空き一覧\n${ext(pageUrl)}` : '') + `\n\n予約サイト\n${ext(SITE)}`;
     let text;
     if (fresh.length > LINE_MAX) {
       // 多いときは要約だけ(詳しくは一覧ページで)
