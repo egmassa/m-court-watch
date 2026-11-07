@@ -3,6 +3,10 @@
 
 # 監視する施設(room_id はコートチェッカーと同じ番号)
 facilities:
+  - name: "第一中学校"
+    room_id: 134
+  - name: "第六中学校"
+    room_id: 144
   - name: "大沢総合グラウンド"
     room_id: 24
     exclude_courts: [6]   # 監視しないコート番号
@@ -14,7 +18,7 @@ weekdays: [月, 火, 水, 木, 金]
 exclude_holidays: true
 
 # この時刻以降に始まる枠だけ通知
-time_from: "18:00"
+time_from: "16:00"
 
 # 今日から何日先まで見るか
 days_ahead: 30
