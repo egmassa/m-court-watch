@@ -134,8 +134,30 @@ async function pushLine(text) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
-  log('LINE送信:', r.status, r.ok ? 'OK' : await r.text());
-  if (!r.ok) process.exitCode = 1;
+  const detail = r.ok ? 'OK' : await r.text();
+  log('LINE送信:', r.status, detail);
+  if (!r.ok) {
+    process.exitCode = 1;
+    lineError = r.status === 429 && /monthly limit/i.test(detail)
+      ? '今月のLINE無料枠(通数の上限)に達したため、通知を送れませんでした'
+      : `LINE送信エラー(${r.status})`;
+    summary(`### ❌ ${lineError}\n${detail}`);
+  }
+}
+
+// 今月のLINE使用数(上限/使用済み)を調べる
+let lineError = null;
+async function lineQuota() {
+  const token = process.env.LINE_TOKEN;
+  if (!token) return null;
+  try {
+    const h = { headers: { Authorization: `Bearer ${token}` } };
+    const [q, c] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', h).then(r => r.json()),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', h).then(r => r.json()),
+    ]);
+    return { limit: q.type === 'limited' ? q.value : null, used: c.totalUsage ?? null };
+  } catch (e) { log('LINE使用数の取得に失敗:', e.message); return null; }
 }
 
 function summary(md) {
@@ -213,7 +235,17 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
   const keep = prevSlots.filter(s => failedPrefixes.includes(s.key) && !hits.some(h => h.key === s.key));
   const slots = [...hits, ...keep].map(({ facility, date, court, time, key }) => ({ facility, date, court, time, key }))
     .sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court));
-  const same = JSON.stringify(keys) === JSON.stringify([...(prev.keys || [])].sort()) && prev.slots;
+  // LINEの使用状況(設定ページに表示)。エラーは次に送信が成功するまで残す
+  const quota = await lineQuota();
+  const month = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
+  const prevLine = prev.line || {};
+  const line = quota ? { ...quota, month, error: lineError || (fresh.length ? null : (prevLine.month === month ? prevLine.error || null : null)) } : (prev.line || null);
+  if (quota) log(`LINE今月の使用数: ${quota.used}${quota.limit ? ' / ' + quota.limit : ''}通`);
+  if (line && line.limit && line.used >= line.limit && !line.error) line.error = '今月のLINE無料枠を使い切りました。月末まで通知は届きません';
+  if (line && line.limit && line.used < line.limit && /使い切りました|上限/.test(line.error || '') && !lineError) line.error = null;
+
+  const same = JSON.stringify(keys) === JSON.stringify([...(prev.keys || [])].sort()) && prev.slots &&
+    JSON.stringify(line) === JSON.stringify(prev.line || null);
   if (same) { log('空き状況に変化なし(保存なし)'); return; }
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ updated: new Date().toISOString(), keys, slots }, null, 1));
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ updated: new Date().toISOString(), keys, slots, line }, null, 1));
 })();

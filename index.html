@@ -120,6 +120,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   <section class="card">
     <h2>今の空き <span class="muted" id="count" style="font-weight:normal;font-size:12px"></span><span class="viewtg"><button id="vCal" class="on" type="button">カレンダー</button><button id="vList" type="button">リスト</button></span></h2>
     <div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div>
+    <div class="status" id="lineStatus" style="margin-top:2px"></div>
+    <div class="msg" id="lineAlert"></div>
     <div id="slots" style="margin-top:10px"><div class="empty">読み込み中…</div></div>
     <div class="btns" style="margin-top:12px">
       <button id="runNow" class="needtok">今すぐチェック</button>
@@ -326,6 +328,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     try {
       const { text } = await getFile('state.json');
       const st = JSON.parse(text);
+      renderLine(st.line);
       slotData = st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; });
     } catch (e) {
       slotData = null;
@@ -336,6 +339,19 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       return;
     }
     renderSlots();
+  }
+
+  function renderLine(l) {
+    const el = $('lineStatus');
+    if (!l || l.used == null) { el.innerHTML = ''; hideMsg('lineAlert'); return; }
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    if (l.month && l.month !== thisMonth) { el.innerHTML = '<span class="dot ok"></span><span>LINE 今月はまだ送信なし</span>'; hideMsg('lineAlert'); return; }
+    const rate = l.limit ? l.used / l.limit : 0;
+    const cls = l.error || rate >= 1 ? 'ng' : rate >= 0.8 ? 'run' : 'ok';
+    el.innerHTML = `<span class="dot ${cls}"></span><span>LINE 今月 ${l.used}${l.limit ? ' / ' + l.limit : ''}通</span>`;
+    if (l.error) msg('lineAlert', '⚠ ' + l.error, 'ng');
+    else if (rate >= 0.8) msg('lineAlert', `LINEの無料枠が残り ${l.limit - l.used}通です。全員送信は1回で人数分を使います。`, 'warn');
+    else hideMsg('lineAlert');
   }
 
   function groupDay(list) {
