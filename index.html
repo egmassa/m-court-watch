@@ -97,6 +97,7 @@ a{color:var(--accent)}
     <div class="btns" style="margin-top:12px">
       <button id="runNow">今すぐチェック</button>
       <button id="reload">表示を更新</button>
+      <button id="resend">全部LINEで再送</button>
       <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener"
          style="align-self:center;margin-left:auto;font-size:14px">予約サイト ↗</a>
     </div>
@@ -410,32 +411,43 @@ a{color:var(--accent)}
   }
   $('save').onclick = () => saveConfig();
 
-  // ---- 今すぐチェック ----
-  let poll = null;
-  $('runNow').onclick = async () => {
+  // ---- 今すぐチェック / 全部再送 ----
+  let poll = null, resendArmed = null;
+  $('runNow').onclick = () => runCheck(false);
+  $('resend').onclick = () => {
+    if (!resendArmed) {
+      $('resend').textContent = 'もう一度押すと送信';
+      msg('runMsg', '基準をリセットして、条件に合う今の空きをすべてLINEに送ります。全員送信の場合は人数分の通数を使います。', 'warn');
+      resendArmed = setTimeout(() => { resendArmed = null; $('resend').textContent = '全部LINEで再送'; hideMsg('runMsg'); }, 5000);
+      return;
+    }
+    clearTimeout(resendArmed); resendArmed = null; $('resend').textContent = '全部LINEで再送';
+    runCheck(true);
+  };
+  async function runCheck(reset) {
     hideMsg('runMsg');
     if (!token) { msg('runMsg', '先にアクセストークンを登録してください', 'warn'); $('tokBox').open = true; return; }
-    $('runNow').disabled = true;
+    $('runNow').disabled = true; $('resend').disabled = true;
     if (isDirty()) {
       const ok = await saveConfig(true);
-      if (!ok) { $('runNow').disabled = false; msg('runMsg', '条件を保存できなかったため、チェックを中止しました', 'ng'); return; }
+      if (!ok) { $('runNow').disabled = false; $('resend').disabled = false; msg('runMsg', '条件を保存できなかったため、チェックを中止しました', 'ng'); return; }
     }
     try {
       await gh(`/actions/workflows/${WF}/dispatches`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: 'main' }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: 'main', inputs: { reset: reset ? 'true' : 'false' } }),
       });
-      msg('runMsg', 'チェックを開始しました。1分ほどで結果が反映されます。');
+      msg('runMsg', reset ? '再送を開始しました。1分ほどで今の空きがすべてLINEに届きます。' : 'チェックを開始しました。1分ほどで結果が反映されます。');
       let n = 0; clearInterval(poll);
       poll = setInterval(async () => {
         n++;
         const running = await loadRun();
-        if ((!running && n > 2) || n > 12) { clearInterval(poll); await loadSlots(); $('runNow').disabled = false; hideMsg('runMsg'); }
+        if ((!running && n > 2) || n > 12) { clearInterval(poll); await loadSlots(); $('runNow').disabled = false; $('resend').disabled = false; hideMsg('runMsg'); }
       }, 10000);
     } catch (e) {
       msg('runMsg', `開始できませんでした(${e.message})。トークンに Actions の Read and write 権限があるか確認してください。`, 'ng');
-      $('runNow').disabled = false;
+      $('runNow').disabled = false; $('resend').disabled = false;
     }
-  };
+  }
   $('reload').onclick = () => { hideMsg('runMsg'); loadAll(); };
   $('dclear').onclick = () => { $('dfrom').value = ''; };
 

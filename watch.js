@@ -160,7 +160,9 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
     }
   }
 
-  const prev = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
+  const reset = process.env.RESET === 'true';
+  if (reset) log('基準をリセット: 今の空きをすべて通知します');
+  const prev = !reset && fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
   const fresh = hits.filter(h => !prev.keys.includes(h.key));
 
   log(`条件に合う空き: ${hits.length} 枠 / うち新規: ${fresh.length} 枠`);
