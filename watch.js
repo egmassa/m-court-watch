@@ -105,13 +105,24 @@ async function collect(holidays) {
   return { hits, errors };
 }
 
+// LINE_USER_ID の書き方で送り先が変わる
+//   all            → botを友だち追加している全員に送信(ブロードキャスト)
+//   Uxxxx          → その1人だけに送信
+//   Uxxxx,Uyyyy    → 書いた複数人に送信
 async function pushLine(text) {
-  const token = process.env.LINE_TOKEN, to = process.env.LINE_USER_ID;
-  if (!token || !to) { log('LINE未設定のため通知はスキップ'); return; }
-  const r = await fetch('https://api.line.me/v2/bot/message/push', {
+  const token = process.env.LINE_TOKEN, toRaw = (process.env.LINE_USER_ID || '').trim();
+  if (!token || !toRaw) { log('LINE未設定のため通知はスキップ'); return; }
+  const messages = [{ type: 'text', text: text.slice(0, 4900) }];
+  const ids = toRaw.split(/[,\s]+/).filter(Boolean);
+  let endpoint, body;
+  if (toRaw.toLowerCase() === 'all') { endpoint = 'broadcast'; body = { messages }; }
+  else if (ids.length === 1) { endpoint = 'push'; body = { to: ids[0], messages }; }
+  else { endpoint = 'multicast'; body = { to: ids, messages }; }
+  log(`LINE送信先: ${endpoint === 'broadcast' ? '友だち全員' : ids.length + '人'}`);
+  const r = await fetch(`https://api.line.me/v2/bot/message/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ to, messages: [{ type: 'text', text: text.slice(0, 4900) }] }),
+    body: JSON.stringify(body),
   });
   log('LINE送信:', r.status, r.ok ? 'OK' : await r.text());
   if (!r.ok) process.exitCode = 1;
