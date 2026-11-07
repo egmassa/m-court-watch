@@ -105,7 +105,7 @@ a{color:var(--accent)}
 
   <!-- 条件 -->
   <section class="card">
-    <h2>監視の条件</h2>
+    <h2>監視の条件 <span class="meta" id="dirty" hidden style="color:var(--warn)">● 未保存の変更あり</span></h2>
     <div class="lock" id="lockNote" hidden>条件の保存には、下の「アクセストークン」の登録が必要です</div>
 
     <div class="field">
@@ -198,7 +198,7 @@ a{color:var(--accent)}
   };
   const TOKEN_KEY = `courtwatch_token_${OWNER}_${REPO}`;
   let token = store.get(TOKEN_KEY);
-  let configSha = null, extraFacs = [];
+  let configSha = null, extraFacs = [], savedYaml = null;
 
   const msg = (id, text, kind = 'ok') => {
     const el = $(id); el.textContent = text; el.className = `msg show ${kind}`;
@@ -276,6 +276,7 @@ a{color:var(--accent)}
       $('dfrom').value = c.date_from ? String(c.date_from) : '';
       // 既存の除外コート設定を保持
       window.__facDetail = facs;
+      savedYaml = buildYaml().text; markDirty();
     } catch (e) {
       renderFacs([]);
       msg('saveMsg', `条件を読み込めませんでした(${e.message})`, 'ng');
@@ -372,12 +373,17 @@ a{color:var(--accent)}
     return { text: lines.join('\n'), facs, wd };
   }
 
-  $('save').onclick = async () => {
+  const isDirty = () => savedYaml !== null && buildYaml().text !== savedYaml;
+  function markDirty() { $('dirty').hidden = !isDirty(); }
+  document.addEventListener('change', e => { if (e.target.closest('section') && !e.target.closest('#tokBox')) markDirty(); });
+
+  // 保存。成功で true
+  async function saveConfig(fromRun = false) {
     hideMsg('saveMsg');
-    if (!token) { msg('saveMsg', '先にアクセストークンを登録してください', 'warn'); $('tokBox').open = true; $('tok').focus(); return; }
+    if (!token) { msg('saveMsg', '先にアクセストークンを登録してください', 'warn'); $('tokBox').open = true; $('tok').focus(); return false; }
     const { text, facs, wd } = buildYaml();
-    if (!facs.length) return msg('saveMsg', '施設を1つ以上選んでください', 'warn');
-    if (!wd.length) return msg('saveMsg', '曜日を1つ以上選んでください', 'warn');
+    if (!facs.length) { msg('saveMsg', '施設を1つ以上選んでください', 'warn'); return false; }
+    if (!wd.length) { msg('saveMsg', '曜日を1つ以上選んでください', 'warn'); return false; }
     $('save').disabled = true; $('save').textContent = '保存中…';
     try {
       if (!configSha) configSha = (await getFile('config.yml')).sha;
@@ -387,17 +393,22 @@ a{color:var(--accent)}
       });
       configSha = r.content.sha;
       window.__facDetail = facs;
-      msg('saveMsg', '保存しました。次の巡回(30分以内)から反映されます。すぐ確かめるなら「今すぐチェック」を押してください。');
+      savedYaml = text; markDirty();
+      msg('saveMsg', fromRun ? '変更を保存しました。この条件でチェックします。'
+        : '保存しました。次の巡回(30分以内)から反映されます。すぐ確かめるなら「今すぐチェック」を押してください。');
+      return true;
     } catch (e) {
       if (e.status === 409 || e.status === 422) {
         msg('saveMsg', '他の場所で変更されていたため保存できませんでした。ページを開き直してからもう一度保存してください。', 'ng');
       } else if (e.status === 401 || e.status === 403 || e.status === 404) {
         msg('saveMsg', `トークンの権限が足りないか、期限切れの可能性があります(${e.message})`, 'ng');
       } else msg('saveMsg', `保存できませんでした(${e.message})`, 'ng');
+      return false;
     } finally {
       $('save').disabled = false; $('save').textContent = '保存する';
     }
-  };
+  }
+  $('save').onclick = () => saveConfig();
 
   // ---- 今すぐチェック ----
   let poll = null;
@@ -405,6 +416,10 @@ a{color:var(--accent)}
     hideMsg('runMsg');
     if (!token) { msg('runMsg', '先にアクセストークンを登録してください', 'warn'); $('tokBox').open = true; return; }
     $('runNow').disabled = true;
+    if (isDirty()) {
+      const ok = await saveConfig(true);
+      if (!ok) { $('runNow').disabled = false; msg('runMsg', '条件を保存できなかったため、チェックを中止しました', 'ng'); return; }
+    }
     try {
       await gh(`/actions/workflows/${WF}/dispatches`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: 'main' }),
