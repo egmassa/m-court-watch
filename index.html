@@ -103,6 +103,15 @@ a{color:var(--accent)}
 .detail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .detail .d{font-weight:600}
 .legend{font-size:11px;color:var(--sub);margin-top:6px}
+/* 施設ごとの詳細 */
+.fac{margin-top:6px}
+.fh{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.book{margin-left:auto;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--accent);color:var(--accent);
+  border-radius:999px;padding:3px 10px;white-space:nowrap}
+.book:hover{background:var(--accent);color:var(--on-accent)}
+.fac .slot{margin-left:2px}
+.bookhint{font-size:11px;color:var(--sub);margin-top:8px}
+.qhelp{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
 /* LINE残り通数 */
 .quota{margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--bg)}
 .qtxt{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
@@ -140,6 +149,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     <div class="quota" id="quotaBar" hidden>
       <div class="qtxt"><span id="qLabel"></span><span id="qReach" class="muted"></span></div>
       <div class="qbar"><span id="qFill"></span></div>
+      <div class="qhelp">無料プランで今月LINEを送れる残りの通数です。全員送信は友だち1人につき1通と数えるので、1回の通知で友だちの人数分減ります。毎月1日に200通に戻ります。</div>
     </div>
     <div class="msg" id="runMsg"></div>
   </section>
@@ -381,8 +391,21 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     list.forEach(s => { const k = `${s.facility}|${s.time}`; (g[k] ||= { facility: s.facility, time: s.time, courts: [] }).courts.push(s.court); });
     return Object.values(g).sort((a, b) => a.time.localeCompare(b.time) || a.facility.localeCompare(b.facility));
   }
-  const rowsHtml = list => groupDay(list).map(g =>
-    `<div class="slot"><span class="t">${g.time}</span><span>${shortFac(g.facility)}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('');
+  // 施設ごとにまとめ、「予約画面へ」リンクを付ける(コートチェッカーがその日の予約画面へ進める)
+  const roomOf = s => Number((s.key || '').split('|')[0]) || (KNOWN.find(k => k.name === s.facility) || {}).room_id;
+  const bookUrl = (room, ds) => `https://yoyaku-mitaka.jp/reservation#cw-jump=${room}_${ds}`;
+  const rowsHtml = list => {
+    const byFac = {};
+    list.forEach(s => (byFac[s.facility] ||= []).push(s));
+    return Object.entries(byFac).map(([f, ls]) => {
+      const room = roomOf(ls[0]), ds = ls[0].date;
+      const rows = groupDay(ls).map(g =>
+        `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('');
+      return `<div class="fac"><div class="fh"><span>${shortFac(f)}</span>` +
+        (room ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>` : '') +
+        `</div>${rows}</div>`;
+    }).join('');
+  };
   const dayHead = ds => { const { txt, dow } = jpDate(ds); return `<div class="d ${dow === 6 ? 'sat' : (dow === 0 || holidays[ds]) ? 'sun' : ''}">${txt}${holidays[ds] ? ' <span class="muted">' + holidays[ds] + '</span>' : ''}</div>`; };
 
   function renderSlots() {
@@ -437,8 +460,9 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
                    : `<div class="${cls}">${inner}</div>`;
     }
-    html += '</div><div class="legend">緑の日に空きあり(数字は枠数)。タップで詳細</div>';
-    html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>`;
+    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。タップで下に詳細</div>';
+    html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
+      '<div class="bookhint">「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます</div>';
     $('slots').innerHTML = html;
     $('slots').querySelectorAll('button.cd').forEach(b => b.onclick = () => {
       selDay = b.dataset.d;
