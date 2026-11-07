@@ -10,6 +10,10 @@ const yaml = require('js-yaml');
 
 const SITE = 'https://yoyaku-mitaka.jp/reservation';
 const STATE_FILE = path.join(__dirname, 'state.json');
+// 設定ページのURL(GitHub Pages)。リポジトリ名から自動で作る
+const pageUrl = process.env.PAGE_URL || (process.env.GITHUB_REPOSITORY
+  ? (([o, r]) => `https://${o.toLowerCase()}.github.io/${r}/`)(process.env.GITHUB_REPOSITORY.split('/'))
+  : '');
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const OPEN = 1; // timeslot.status === 1 が空き(コートチェッカーと同じ判定)
 
@@ -176,7 +180,8 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`;
     group(fresh).forEach(g => (byFac[g.facility] ||= []).push(lineOf(g)));
     const text = '🎾 コートに空きが出ました\n\n' +
       Object.entries(byFac).map(([f, ls]) => `【${f}】\n${ls.join('\n')}`).join('\n\n') +
-      `\n\n予約はこちら\n${SITE}`;
+      (pageUrl ? `\n\n今の空き一覧\n${pageUrl}` : '') +
+      `\n\n予約サイト\n${SITE}`;
     await pushLine(text);
   }
 
