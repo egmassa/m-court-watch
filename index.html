@@ -114,6 +114,8 @@ a{color:var(--accent)}
 .fac .slot{margin-left:2px}
 .bookhint{font-size:11px;color:var(--sub);margin-top:8px}
 .qhelp{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
+.sitelinks{align-self:center;margin-left:auto;font-size:13px;color:var(--sub);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sitelinks a{font-size:14px}
 /* サイト切替 */
 .sitetabs{display:flex;gap:0;margin:0 0 12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .sitetabs button{flex:1;border:0;border-radius:0;min-height:40px;background:var(--card);font-size:14px}
@@ -156,8 +158,10 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       <button id="runNow" class="needtok">今すぐチェック</button>
       <button id="reload">表示を更新</button>
       <button id="resend" class="needtok">全部LINEで再送</button>
-      <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener"
-         style="align-self:center;margin-left:auto;font-size:14px">予約サイト ↗</a>
+      <span class="sitelinks">予約サイト:
+        <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener">三鷹 ↗</a>
+        <a href="https://kouen.sports.metro.tokyo.lg.jp/web/" target="_blank" rel="noopener">都立公園 ↗</a>
+      </span>
     </div>
     <div class="quota" id="quotaBar" hidden>
       <div class="qtxt"><span id="qLabel"></span><span id="qReach" class="muted"></span></div>
@@ -475,6 +479,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     return Object.values(g).sort((a, b) => a.time.localeCompare(b.time) || a.facility.localeCompare(b.facility));
   }
   // 施設ごとにまとめ、「予約画面へ」リンクを付ける(コートチェッカーがその日の予約画面へ進める)
+  const siteOfSlot = s => s.site || (String(s.key || '').startsWith('toei') ? 'toei' : 'mitaka');
   const roomOf = s => Number((s.key || '').split('|')[0]) || (KNOWN.find(k => k.name === s.facility) || {}).room_id;
   const bookUrl = (room, ds) => `https://yoyaku-mitaka.jp/reservation#cw-jump=${room}_${ds}`;
   const rowsHtml = list => {
@@ -489,7 +494,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
         groupDay(gone).map(g =>
         `<div class="slot gone"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
       return `<div class="fac"><div class="fh"><span>${shortFac(f)}</span>` +
-        (room && act.length ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>` : '') +
+        (!act.length ? '' : room ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>`
+          : siteOfSlot(ls[0]) === 'toei' ? `<a class="book" href="https://kouen.sports.metro.tokyo.lg.jp/web/" target="_blank" rel="noopener">予約サイトへ ↗</a>` : '') +
         `</div>${rows}</div>`;
     }).join('');
   };
@@ -552,7 +558,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     }
     html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。「埋」は直近24時間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
-      '<div class="bookhint">「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます</div>';
+      '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園は予約サイトのトップが開きます</div>';
     $('slots').innerHTML = html;
     $('slots').querySelectorAll('button.cd').forEach(b => b.onclick = () => {
       selDay = b.dataset.d;
