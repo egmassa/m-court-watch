@@ -24,6 +24,12 @@ toei:
   enabled: false
   # bld / inst はコートチェッカーと同じ施設コード
   facilities:
+    - name: "祖師谷公園"
+      bld: "1070"
+      inst: "10700010"
+    - name: "高井戸公園"
+      bld: "1180"
+      inst: "11800030"
     - name: "小金井公園"
       bld: "1240"
       inst: "12400020"
