@@ -44,3 +44,17 @@ toei:
   time_from: "09:00"   # この時刻以降に始まる枠だけ
   days_ahead: 30   # 今日から何日先まで
   date_from: ""   # この日より前は無視(不要なら空欄)
+
+# ===== 府中市 =====
+fuchu:
+  enabled: true
+  # 施設名は予約サイトの表記どおり
+  facilities:
+    - name: "小柳庭球場（Ａ～Ｄ）"
+    - name: "紅葉丘庭球場"
+    - name: "紅葉丘第２庭球場"
+  weekdays: [月, 火, 水, 木, 金, 土, 日]   # 監視する曜日
+  exclude_holidays: false   # 祝日を除くか
+  time_from: "09:00"   # この時刻以降に始まる枠だけ
+  days_ahead: 14   # 今日から何日先まで
+  date_from: ""   # この日より前は無視(不要なら空欄)
