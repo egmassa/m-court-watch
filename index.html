@@ -114,6 +114,12 @@ a{color:var(--accent)}
 .fac .slot{margin-left:2px}
 .bookhint{font-size:11px;color:var(--sub);margin-top:8px}
 .qhelp{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
+/* サイト切替 */
+.sitetabs{display:flex;gap:0;margin:0 0 12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sitetabs button{flex:1;border:0;border-radius:0;min-height:40px;background:var(--card);font-size:14px}
+.sitetabs button+button{border-left:1px solid var(--line)}
+.sitetabs button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+.sitetabs button .off{font-size:11px;opacity:.75;margin-left:4px}
 /* 埋まった枠 */
 .slot.gone .t,.slot.gone .f{text-decoration:line-through;color:var(--sub);font-weight:normal}
 .gtag{font-size:11px;color:var(--err);white-space:nowrap}
@@ -165,6 +171,13 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   <section class="card">
     <h2>監視の条件 <span class="meta" id="dirty" hidden style="color:var(--warn)">● 未保存の変更あり</span></h2>
     <div class="lock" id="lockNote" hidden>条件の保存には、下の「アクセストークン」の登録が必要です</div>
+    <div class="sitetabs" id="siteTabs">
+      <button type="button" data-s="mitaka" class="on">三鷹</button>
+      <button type="button" data-s="toei">都立公園</button>
+    </div>
+    <div class="field">
+      <label class="toggle"><input type="checkbox" id="siteOn"> <span id="siteOnLbl">このサイトを監視する</span></label>
+    </div>
 
     <div class="field">
       <span class="lbl">施設</span>
@@ -245,6 +258,17 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     { name: '新川テニスコート', room_id: 37, short: '新川', exclude_courts: [4] },
     { name: '大沢総合グラウンド', room_id: 24, short: '大沢総合', exclude_courts: [6] },
   ];
+  const TOEI_KNOWN = [
+    { name: '祖師谷公園', bld: '1070', inst: '10700010', short: '祖師谷' },
+    { name: '高井戸公園', bld: '1180', inst: '11800030', short: '高井戸' },
+    { name: '小金井公園', bld: '1240', inst: '12400020', short: '小金井' },
+    { name: '野川公園', bld: '1260', inst: '12600010', short: '野川' },
+    { name: '府中の森公園', bld: '1270', inst: '12700020', short: '府中の森' },
+  ];
+  const SITE_DEFS = {
+    mitaka: { label: '三鷹', known: KNOWN, id: f => String(f.room_id) },
+    toei: { label: '都立公園', known: TOEI_KNOWN, id: f => String(f.bld) },
+  };
   const WD = ['日', '月', '火', '水', '木', '金', '土'];
   const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
@@ -284,7 +308,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 
   // ---- 表示用 ----
   const jpDate = ds => { const d = new Date(ds + 'T00:00:00'); return { txt: `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`, dow: d.getDay() }; };
-  const shortFac = n => (KNOWN.find(k => k.name === n) || {}).short || n;
+  const shortFac = n => ([...KNOWN, ...TOEI_KNOWN].find(k => k.name === n) || {}).short || n;
   const ago = iso => {
     const m = Math.round((Date.now() - new Date(iso)) / 60000);
     if (m < 1) return 'たった今'; if (m < 60) return `${m}分前`;
@@ -307,11 +331,71 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     $('days').innerHTML = [7, 14, 21, 30, 45, 60, 90].map(d => `<option value="${d}">${d}日先まで</option>`).join('');
   }
 
-  function renderFacs(selected) {
-    const list = [...KNOWN];
-    extraFacs.forEach(f => { if (!list.some(k => k.room_id === f.room_id)) list.push({ ...f, short: f.name }); });
-    $('facs').innerHTML = list.map(f =>
-      `<label class="chip"><input type="checkbox" value="${f.room_id}" ${selected.includes(f.room_id) ? 'checked' : ''}><span>${f.short}</span></label>`).join('');
+  // サイトごとの条件(画面で編集中の内容)
+  let curSite = 'mitaka';
+  const forms = {};
+  function formFrom(raw, site, defaults) {
+    raw = raw || defaults;
+    const def = SITE_DEFS[site];
+    const facs = (raw.facilities || []).filter(Boolean).map(f => ({ ...f, room_id: f.room_id != null ? Number(f.room_id) : undefined, bld: f.bld != null ? String(f.bld) : undefined }));
+    return {
+      enabled: raw.enabled !== false && facs.length > 0,
+      facs: facs.map(def.id),
+      detail: facs,
+      extras: facs.filter(f => !def.known.some(k => def.id(k) === def.id(f))),
+      wd: (raw.weekdays || []).map(String),
+      hol: !!raw.exclude_holidays,
+      tfrom: String(raw.time_from || '00:00').padStart(5, '0'),
+      days: String(raw.days_ahead || 30),
+      dfrom: raw.date_from ? String(raw.date_from) : '',
+    };
+  }
+  function renderFacs() {
+    const def = SITE_DEFS[curSite], f = forms[curSite];
+    const list = [...def.known, ...f.extras.map(x => ({ ...x, short: x.name }))];
+    $('facs').innerHTML = list.map(x =>
+      `<label class="chip"><input type="checkbox" value="${def.id(x)}" ${f.facs.includes(def.id(x)) ? 'checked' : ''}><span>${x.short}</span></label>`).join('');
+  }
+  const ensureOpt = (sel, v, text) => { if (![...sel.options].some(o => o.value === v)) sel.insertAdjacentHTML('beforeend', `<option value="${v}">${text}</option>`); sel.value = v; };
+  function stateToForm() {
+    const f = forms[curSite];
+    renderFacs();
+    $('siteOn').checked = f.enabled;
+    $('siteOnLbl').textContent = `${SITE_DEFS[curSite].label}を監視する`;
+    $('wds').querySelectorAll('input').forEach(i => i.checked = f.wd.includes(i.value));
+    $('hol').checked = f.hol;
+    ensureOpt($('tfrom'), f.tfrom, `${f.tfrom} 以降`);
+    ensureOpt($('days'), f.days, `${f.days}日先まで`);
+    $('dfrom').value = f.dfrom;
+    $('siteTabs').querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on', b.dataset.s === curSite);
+      const on = forms[b.dataset.s] && forms[b.dataset.s].enabled;
+      b.innerHTML = SITE_DEFS[b.dataset.s].label + (on ? '' : '<span class="off">(停止中)</span>');
+    });
+  }
+  function formToState() {
+    const f = forms[curSite];
+    if (!f) return;
+    f.enabled = $('siteOn').checked;
+    f.facs = [...$('facs').querySelectorAll('input:checked')].map(i => i.value);
+    f.wd = WD_ORDER.map(i => WD[i]).filter(w => $('wds').querySelector(`input[value="${w}"]`).checked);
+    f.hol = $('hol').checked;
+    f.tfrom = $('tfrom').value;
+    f.days = $('days').value;
+    f.dfrom = $('dfrom').value || '';
+  }
+  $('siteTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-s]');
+    if (!b || b.dataset.s === curSite || !forms.mitaka) return;
+    formToState(); curSite = b.dataset.s; stateToForm();
+  });
+  $('siteOn').addEventListener('change', () => { formToState(); stateToForm(); });
+  function setCfgSaved() {
+    const on = Object.values(forms).filter(f => f.enabled);
+    cfgSaved = {
+      days: Math.max(30, ...on.map(f => Number(f.days))),
+      weekdays: on.length ? [...new Set(on.flatMap(f => f.wd))] : null,
+    };
   }
 
   async function loadConfig() {
@@ -319,25 +403,16 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const { sha, text } = await getFile('config.yml');
       configSha = sha;
       const c = jsyaml.load(text) || {};
-      const facs = (c.facilities || []).filter(f => f && f.room_id).map(f => ({ ...f, room_id: Number(f.room_id) }));
-      extraFacs = facs.filter(f => !KNOWN.some(k => k.room_id === f.room_id));
-      renderFacs(facs.map(f => f.room_id));
-      const wd = (c.weekdays || []).map(String);
-      $('wds').querySelectorAll('input').forEach(i => i.checked = wd.includes(i.value));
-      $('hol').checked = !!c.exclude_holidays;
-      const tf = String(c.time_from || '00:00').padStart(5, '0');
-      if (![...$('tfrom').options].some(o => o.value === tf)) $('tfrom').insertAdjacentHTML('beforeend', `<option value="${tf}">${tf} 以降</option>`);
-      $('tfrom').value = tf;
-      const d = String(c.days_ahead || 30);
-      if (![...$('days').options].some(o => o.value === d)) $('days').insertAdjacentHTML('beforeend', `<option value="${d}">${d}日先まで</option>`);
-      $('days').value = d;
-      $('dfrom').value = c.date_from ? String(c.date_from) : '';
-      // 既存の除外コート設定を保持
-      window.__facDetail = facs;
+      // 旧形式(トップに facilities)は三鷹として読む
+      const mitakaRaw = c.mitaka || (c.facilities ? { facilities: c.facilities, weekdays: c.weekdays, exclude_holidays: c.exclude_holidays, time_from: c.time_from, days_ahead: c.days_ahead, date_from: c.date_from } : null);
+      forms.mitaka = formFrom(mitakaRaw, 'mitaka', { enabled: false, facilities: [], weekdays: ['月', '火', '水', '木', '金'], time_from: '18:00', days_ahead: 30 });
+      forms.toei = formFrom(c.toei, 'toei', { enabled: false, facilities: [], weekdays: ['土', '日'], time_from: '09:00', days_ahead: 30 });
+      // 未設定のサイトは、施設を全部チェックした状態で「停止中」にしておく
+      for (const s of ['mitaka', 'toei']) if (!forms[s].facs.length) forms[s].facs = SITE_DEFS[s].known.map(SITE_DEFS[s].id);
+      stateToForm();
       savedYaml = buildYaml().text; markDirty();
-      cfgSaved = { days: Number(c.days_ahead || 30), weekdays: (c.weekdays || []).map(String) }; renderSlots();
+      setCfgSaved(); renderSlots();
     } catch (e) {
-      renderFacs([]);
       msg('saveMsg', `条件を読み込めませんでした(${e.message})`, 'ng');
     }
   }
@@ -512,44 +587,56 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   // ---- 保存 ----
   const q = s => JSON.stringify(String(s));
   function buildYaml() {
-    const ids = [...$('facs').querySelectorAll('input:checked')].map(i => Number(i.value));
-    const detail = window.__facDetail || [];
-    const all = [...KNOWN, ...extraFacs];
-    const facs = ids.map(id => {
-      const base = all.find(f => f.room_id === id);
-      const cur = detail.find(f => f.room_id === id);
-      return { name: (cur || base).name, room_id: id, exclude_courts: (cur ? cur.exclude_courts : base.exclude_courts) || [] };
-    });
-    const wd = WD_ORDER.map(i => WD[i]).filter(w => $('wds').querySelector(`input[value="${w}"]`).checked);
+    formToState();
+    const facsOf = site => {
+      const f = forms[site], def = SITE_DEFS[site];
+      return f.facs.map(id => {
+        const base = [...def.known, ...f.extras].find(x => def.id(x) === id) || {};
+        const cur = f.detail.find(x => def.id(x) === id) || {};
+        return { ...base, ...cur };
+      });
+    };
+    const common = f => [
+      `  weekdays: [${f.wd.join(', ')}]   # 監視する曜日`,
+      `  exclude_holidays: ${f.hol}   # 祝日を除くか`,
+      `  time_from: ${q(f.tfrom)}   # この時刻以降に始まる枠だけ`,
+      `  days_ahead: ${Number(f.days)}   # 今日から何日先まで`,
+      `  date_from: ${q(f.dfrom)}   # この日より前は無視(不要なら空欄)`,
+    ];
+    const m = forms.mitaka, t = forms.toei;
+    const mf = facsOf('mitaka'), tf = facsOf('toei');
     const lines = [
-      '# 三鷹テニスコート 空き監視の設定',
+      '# テニスコート 空き監視の設定',
       '# 設定ページ(index.html)から保存されました。ここを直接書き換えてもOKです。',
       '',
-      '# 監視する施設(room_id はコートチェッカーと同じ番号)',
-      'facilities:',
-      ...facs.flatMap(f => [
-        `  - name: ${q(f.name)}`,
-        `    room_id: ${f.room_id}`,
-        ...(f.exclude_courts.length ? [`    exclude_courts: [${f.exclude_courts.join(', ')}]   # 監視しないコート番号`] : []),
+      '# ===== 三鷹市 =====',
+      'mitaka:',
+      `  enabled: ${m.enabled}`,
+      '  # 監視する施設(room_id はコートチェッカーと同じ番号)',
+      '  facilities:',
+      ...mf.flatMap(f => [
+        `    - name: ${q(f.name)}`,
+        `      room_id: ${Number(f.room_id)}`,
+        ...((f.exclude_courts || []).length ? [`      exclude_courts: [${f.exclude_courts.join(', ')}]   # 監視しないコート番号`] : []),
       ]),
+      ...common(m),
       '',
-      '# 監視する曜日(月 火 水 木 金 土 日)',
-      `weekdays: [${wd.join(', ')}]`,
-      '',
-      '# 祝日を除くか(true=除く)',
-      `exclude_holidays: ${$('hol').checked}`,
-      '',
-      '# この時刻以降に始まる枠だけ通知',
-      `time_from: ${q($('tfrom').value)}`,
-      '',
-      '# 今日から何日先まで見るか',
-      `days_ahead: ${Number($('days').value)}`,
-      '',
-      '# この日より前は無視(不要なら空欄) 例: "2026-11-15"',
-      `date_from: ${q($('dfrom').value || '')}`,
+      '# ===== 都立公園 =====',
+      'toei:',
+      `  enabled: ${t.enabled}`,
+      '  # bld / inst はコートチェッカーと同じ施設コード',
+      '  facilities:',
+      ...tf.flatMap(f => [
+        `    - name: ${q(f.name)}`,
+        `      bld: ${q(f.bld)}`,
+        `      inst: ${q(f.inst)}`,
+      ]),
+      ...common(t),
       '',
     ];
-    return { text: lines.join('\n'), facs, wd };
+    if (!mf.length) lines.splice(lines.indexOf('  facilities:'), 1, '  facilities: []');
+    if (!tf.length) lines.splice(lines.lastIndexOf('  facilities:'), 1, '  facilities: []');
+    return { text: lines.join('\n'), mf, tf };
   }
 
   const isDirty = () => savedYaml !== null && buildYaml().text !== savedYaml;
@@ -560,9 +647,14 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   async function saveConfig(fromRun = false) {
     hideMsg('saveMsg');
     if (!token) { msg('saveMsg', '先にアクセストークンを登録してください', 'warn'); $('tokBox').open = true; $('tok').focus(); return false; }
-    const { text, facs, wd } = buildYaml();
-    if (!facs.length) { msg('saveMsg', '施設を1つ以上選んでください', 'warn'); return false; }
-    if (!wd.length) { msg('saveMsg', '曜日を1つ以上選んでください', 'warn'); return false; }
+    const { text } = buildYaml();
+    const on = Object.entries(forms).filter(([, f]) => f.enabled);
+    if (!on.length) { msg('saveMsg', '監視するサイトを1つ以上オンにしてください', 'warn'); return false; }
+    for (const [site, f] of on) {
+      const name = SITE_DEFS[site].label;
+      if (!f.facs.length) { msg('saveMsg', `${name}の施設を1つ以上選んでください`, 'warn'); return false; }
+      if (!f.wd.length) { msg('saveMsg', `${name}の曜日を1つ以上選んでください`, 'warn'); return false; }
+    }
     $('save').disabled = true; $('save').textContent = '保存中…';
     try {
       if (!configSha) configSha = (await getFile('config.yml')).sha;
@@ -571,9 +663,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
         body: JSON.stringify({ message: '設定ページから条件を変更', content: b64enc(text), sha: configSha, branch: 'main' }),
       });
       configSha = r.content.sha;
-      window.__facDetail = facs;
       savedYaml = text; markDirty();
-      cfgSaved = { days: Number($('days').value), weekdays: wd }; renderSlots();
+      setCfgSaved(); stateToForm(); renderSlots();
       msg('saveMsg', fromRun ? '変更を保存しました。この条件でチェックします。'
         : '保存しました。次の巡回(30分以内)から反映されます。すぐ確かめるなら「今すぐチェック」を押してください。');
       return true;
