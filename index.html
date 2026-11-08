@@ -161,6 +161,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       <span class="sitelinks">予約サイト:
         <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener">三鷹 ↗</a>
         <a href="https://kouen.sports.metro.tokyo.lg.jp/web/" target="_blank" rel="noopener">都立公園 ↗</a>
+        <a href="https://shisetsu.city.fuchu.tokyo.jp/web/Home/WgR_ModeSelect" target="_blank" rel="noopener">府中 ↗</a>
       </span>
     </div>
     <div class="quota" id="quotaBar" hidden>
@@ -178,6 +179,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     <div class="sitetabs" id="siteTabs">
       <button type="button" data-s="mitaka" class="on">三鷹</button>
       <button type="button" data-s="toei">都立公園</button>
+      <button type="button" data-s="fuchu">府中</button>
     </div>
     <div class="field">
       <label class="toggle"><input type="checkbox" id="siteOn"> <span id="siteOnLbl">このサイトを監視する</span></label>
@@ -269,9 +271,22 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     { name: '野川公園', bld: '1260', inst: '12600010', short: '野川' },
     { name: '府中の森公園', bld: '1270', inst: '12700020', short: '府中の森' },
   ];
+  const FUCHU_KNOWN = [
+    ['郷土の森庭球場', '郷土の森'], ['寿町庭球場', '寿町'], ['武蔵台庭球場', '武蔵台'],
+    ['小柳庭球場（Ａ～Ｄ）', '小柳A-D'], ['小柳庭球場Ｅ', '小柳E'], ['押立庭球場', '押立'],
+    ['四谷庭球場', '四谷'], ['栄町庭球場', '栄町'], ['住吉庭球場', '住吉'], ['若松庭球場', '若松'],
+    ['西府庭球場', '西府'], ['日新第２庭球場', '日新第2'], ['紅葉丘庭球場', '紅葉丘'],
+    ['紅葉丘第２庭球場', '紅葉丘第2'], ['平和の森庭球場', '平和の森'],
+  ].map(([name, short]) => ({ name, short }));
+  const FUCHU_DEFAULT = ['郷土の森庭球場', '小柳庭球場（Ａ～Ｄ）', '押立庭球場', '平和の森庭球場', '紅葉丘庭球場', '紅葉丘第２庭球場'];
   const SITE_DEFS = {
     mitaka: { label: '三鷹', known: KNOWN, id: f => String(f.room_id) },
     toei: { label: '都立公園', known: TOEI_KNOWN, id: f => String(f.bld) },
+    fuchu: { label: '府中', known: FUCHU_KNOWN, id: f => String(f.name) },
+  };
+  const SITE_TOP = {
+    toei: 'https://kouen.sports.metro.tokyo.lg.jp/web/',
+    fuchu: 'https://shisetsu.city.fuchu.tokyo.jp/web/Home/WgR_ModeSelect',
   };
   const WD = ['日', '月', '火', '水', '木', '金', '土'];
   const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -312,7 +327,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 
   // ---- 表示用 ----
   const jpDate = ds => { const d = new Date(ds + 'T00:00:00'); return { txt: `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`, dow: d.getDay() }; };
-  const shortFac = n => ([...KNOWN, ...TOEI_KNOWN].find(k => k.name === n) || {}).short || n;
+  const shortFac = n => ([...KNOWN, ...TOEI_KNOWN, ...FUCHU_KNOWN].find(k => k.name === n) || {}).short || n;
   const ago = iso => {
     const m = Math.round((Date.now() - new Date(iso)) / 60000);
     if (m < 1) return 'たった今'; if (m < 60) return `${m}分前`;
@@ -411,8 +426,10 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const mitakaRaw = c.mitaka || (c.facilities ? { facilities: c.facilities, weekdays: c.weekdays, exclude_holidays: c.exclude_holidays, time_from: c.time_from, days_ahead: c.days_ahead, date_from: c.date_from } : null);
       forms.mitaka = formFrom(mitakaRaw, 'mitaka', { enabled: false, facilities: [], weekdays: ['月', '火', '水', '木', '金'], time_from: '18:00', days_ahead: 30 });
       forms.toei = formFrom(c.toei, 'toei', { enabled: false, facilities: [], weekdays: ['土', '日'], time_from: '09:00', days_ahead: 30 });
-      // 未設定のサイトは、施設を全部チェックした状態で「停止中」にしておく
+      forms.fuchu = formFrom(c.fuchu, 'fuchu', { enabled: false, facilities: [], weekdays: ['土', '日'], time_from: '09:00', days_ahead: 30 });
+      // 未設定のサイトは、施設をチェックした状態で「停止中」にしておく
       for (const s of ['mitaka', 'toei']) if (!forms[s].facs.length) forms[s].facs = SITE_DEFS[s].known.map(SITE_DEFS[s].id);
+      if (!forms.fuchu.facs.length) forms.fuchu.facs = FUCHU_DEFAULT.slice();
       stateToForm();
       savedYaml = buildYaml().text; markDirty();
       setCfgSaved(); renderSlots();
@@ -479,8 +496,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     return Object.values(g).sort((a, b) => a.time.localeCompare(b.time) || a.facility.localeCompare(b.facility));
   }
   // 施設ごとにまとめ、「予約画面へ」リンクを付ける(コートチェッカーがその日の予約画面へ進める)
-  const siteOfSlot = s => s.site || (String(s.key || '').startsWith('toei') ? 'toei' : 'mitaka');
-  const roomOf = s => Number((s.key || '').split('|')[0]) || (KNOWN.find(k => k.name === s.facility) || {}).room_id;
+  const siteOfSlot = s => s.site || (String(s.key || '').startsWith('toei') ? 'toei' : String(s.key || '').startsWith('fuchu:') ? 'fuchu' : 'mitaka');
+  const roomOf = s => siteOfSlot(s) !== 'mitaka' ? undefined : Number((s.key || '').split('|')[0]) || (KNOWN.find(k => k.name === s.facility) || {}).room_id;
   const bookUrl = (room, ds) => `https://yoyaku-mitaka.jp/reservation#cw-jump=${room}_${ds}`;
   const rowsHtml = list => {
     const byFac = {};
@@ -495,7 +512,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
         `<div class="slot gone"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
       return `<div class="fac"><div class="fh"><span>${shortFac(f)}</span>` +
         (!act.length ? '' : room ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>`
-          : siteOfSlot(ls[0]) === 'toei' ? `<a class="book" href="https://kouen.sports.metro.tokyo.lg.jp/web/" target="_blank" rel="noopener">予約サイトへ ↗</a>` : '') +
+          : SITE_TOP[siteOfSlot(ls[0])] ? `<a class="book" href="${SITE_TOP[siteOfSlot(ls[0])]}" target="_blank" rel="noopener">予約サイトへ ↗</a>` : '') +
         `</div>${rows}</div>`;
     }).join('');
   };
@@ -558,7 +575,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     }
     html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。「埋」は直近24時間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
-      '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園は予約サイトのトップが開きます</div>';
+      '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園・府中は予約サイトのトップが開きます</div>';
     $('slots').innerHTML = html;
     $('slots').querySelectorAll('button.cd').forEach(b => b.onclick = () => {
       selDay = b.dataset.d;
@@ -609,8 +626,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       `  days_ahead: ${Number(f.days)}   # 今日から何日先まで`,
       `  date_from: ${q(f.dfrom)}   # この日より前は無視(不要なら空欄)`,
     ];
-    const m = forms.mitaka, t = forms.toei;
-    const mf = facsOf('mitaka'), tf = facsOf('toei');
+    const m = forms.mitaka, t = forms.toei, fu = forms.fuchu;
+    const mf = facsOf('mitaka'), tf = facsOf('toei'), ff = facsOf('fuchu');
     const lines = [
       '# テニスコート 空き監視の設定',
       '# 設定ページ(index.html)から保存されました。ここを直接書き換えてもOKです。',
@@ -639,9 +656,19 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       ]),
       ...common(t),
       '',
+      '# ===== 府中市 =====',
+      'fuchu:',
+      `  enabled: ${fu.enabled}`,
+      '  # 施設名は予約サイトの表記どおり',
+      '  facilities:',
+      ...ff.map(f => `    - name: ${q(f.name)}`),
+      ...common(fu),
+      '',
     ];
     if (!mf.length) lines.splice(lines.indexOf('  facilities:'), 1, '  facilities: []');
-    if (!tf.length) lines.splice(lines.lastIndexOf('  facilities:'), 1, '  facilities: []');
+    const fIdx = lines.indexOf('fuchu:');
+    if (!tf.length) lines.splice(lines.lastIndexOf('  facilities:', fIdx), 1, '  facilities: []');
+    if (!ff.length) lines.splice(lines.lastIndexOf('  facilities:'), 1, '  facilities: []');
     return { text: lines.join('\n'), mf, tf };
   }
 

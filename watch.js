@@ -251,15 +251,254 @@ const TOEI = {
   },
 };
 
+// ================= 府中市 =================
+// 画面を1枚ずつ進める作り(ASP.NET)なので、ブラウザ(Playwright)で
+// コートチェッカー(fuchu-tennis-checker.user.js)と同じ操作をする。
+const FUCHU = {
+  id: 'fuchu',
+  name: '府中',
+  bookUrl: 'https://shisetsu.city.fuchu.tokyo.jp/web/Home/WgR_ModeSelect',
+  prefix: f => `fuchu:${f.name}|`,
+  facilities: c => c.facilities.filter(f => f.name),
+  courtOk: () => true,
+  async collect(c, holidays) {
+    const { chromium } = require('playwright');
+    const DEBUG_DIR = path.join(__dirname, 'debug');
+    const hits = [], failed = [], seen = new Set();
+    const facs = this.facilities(c);
+    // 全角英数・波ダッシュ・空白をそろえて施設名を比べる
+    const norm = s => String(s).replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+      .replace(/[～〜~]/g, '~').replace(/\s/g, '');
+    const matchFac = raw => { const r = norm(raw); return facs.find(f => { const n = norm(f.name); return r.includes(n) || n.includes(r); }); };
+
+    const browser = await chromium.launch();
+    const ctx = await browser.newContext({ locale: 'ja-JP', timezoneId: 'Asia/Tokyo', userAgent: UA, viewport: { width: 1280, height: 1600 } });
+    // 「このページを離れますか?」のダイアログを出させない(コートチェッカーと同じ対策)
+    await ctx.addInitScript(() => {
+      const orig = window.addEventListener;
+      window.addEventListener = function (t, fn, o) { if (t === 'beforeunload') return; return orig.call(this, t, fn, o); };
+      try { Object.defineProperty(window, 'onbeforeunload', { get: () => null, set: () => {}, configurable: true }); } catch (e) {}
+    });
+    const page = await ctx.newPage();
+    page.on('dialog', d => d.accept().catch(() => {}));
+    page.setDefaultTimeout(60000);
+    let stepName = '開始';
+    const step = n => { stepName = n; log(`  府中: ${n}`); };
+
+    // 画面遷移(サイトに負担をかけないよう、遷移のあと1秒あける)
+    const nav = async fn => {
+      await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), fn()]);
+      await sleep(1000);
+    };
+    // ASP.NET のポストバック(コートチェッカーの formSubmit と同じ)
+    const submit = (target, arg = '') => nav(() => page.evaluate(([t, a]) => {
+      const f = document.querySelector('form');
+      const et = f.querySelector('input[name="__EVENTTARGET"]'), ea = f.querySelector('input[name="__EVENTARGUMENT"]');
+      if (et) et.value = t;
+      if (ea) ea.value = a;
+      f.submit();
+    }, [target, arg]));
+    const check = (id, on = true) => page.evaluate(([id, on]) => {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      if (el.checked !== on) { const l = document.querySelector(`label[for="${id}"]`); (l || el).click(); }
+      if (el.checked !== on) { el.checked = on; el.dispatchEvent(new Event('change', { bubbles: true })); }
+      return el.checked;
+    }, [id, on]);
+    // リンク(href="javascript:__doPostBack('x','y')")をたどる
+    const followLink = async text => {
+      const href = await page.evaluate(t => {
+        const a = [...document.querySelectorAll('a')].find(x => x.textContent.trim() === t) ||
+          [...document.querySelectorAll('a')].find(x => x.textContent.trim().includes(t));
+        return a ? a.getAttribute('href') || '' : null;
+      }, text);
+      if (href == null) return false;
+      const m = href.match(/__doPostBack\('([^']*)'\s*,\s*'([^']*)'\)/);
+      if (m) await submit(m[1], m[2]);
+      else await nav(() => page.goto(new URL(href, page.url()).href));
+      return true;
+    };
+
+    // カレンダー画面の絞り込み(1か月表示・曜日・全時間帯)→「表示」
+    const YOBI = { 月: 'checkYobi1', 火: 'checkYobi2', 水: 'checkYobi3', 木: 'checkYobi4', 金: 'checkYobi5', 土: 'checkYobi6', 日: 'checkYobi7' };
+    const applyFilters = async () => {
+      await page.waitForSelector('#btnHyoji', { state: 'attached' });
+      await check('radioPeriod1month');
+      for (const [w, id] of Object.entries(YOBI)) await check(id, c.weekdayLabels.includes(w));
+      await check('checkYobi8', !c.excludeHolidays); // 祝日
+      await check('radioJikan4'); // 全時間帯(時刻はこちらで絞る)
+      await sleep(300);
+      await submit('hyouji');
+    };
+
+    // カレンダーの表を読む(コートチェッカーの parseCalendar と同じ考え方)
+    const parseCalendar = () => page.evaluate(() => {
+      const out = [];
+      let y = new Date().getFullYear(), m = new Date().getMonth() + 1, cols = [];
+      for (const table of document.querySelectorAll('table')) for (const row of table.querySelectorAll('tr')) {
+        const cells = [...row.querySelectorAll('th, td')];
+        if (!cells.length) continue;
+        const first = cells[0].textContent.trim();
+        const ym = first.match(/(\d{4})年(\d{1,2})月/);
+        if (ym) {
+          y = +ym[1]; m = +ym[2]; cols = [];
+          cells.forEach((cell, ci) => {
+            if (!(cell.className || '').split(' ').includes('day')) return;
+            const dm = cell.textContent.trim().match(/^(\d{1,2})([月火水木金土日])$/);
+            if (!dm) return;
+            let day = +dm[1], mo = m, yr = y;
+            if (cols.length && day < cols[cols.length - 1].day && day <= 15) { mo++; if (mo > 12) { mo = 1; yr++; } }
+            if (cols.length && cols[cols.length - 1].mo !== m) { mo = cols[cols.length - 1].mo; yr = cols[cols.length - 1].yr; }
+            cols.push({ ci, day, mo, yr });
+          });
+          continue;
+        }
+        if (!cols.length || !first || first.length < 3 || first === '施設名' || first === '定員') continue;
+        for (const dc of cols) {
+          if (dc.ci >= cells.length) continue;
+          const t = cells[dc.ci].textContent.trim();
+          const cb = cells[dc.ci].querySelector('input[type="checkbox"]');
+          out.push({
+            fac: first, ds: `${dc.yr}-${String(dc.mo).padStart(2, '0')}-${String(dc.day).padStart(2, '0')}`,
+            open: t.includes('○') || t.includes('△'), cb: cb ? cb.id : '',
+          });
+        }
+      }
+      return out;
+    });
+
+    // 時間帯の画面を読む(コートチェッカーの parseTimeslots と同じ考え方)
+    const parseTimeslots = () => page.evaluate(() => {
+      const out = [];
+      for (const h4 of document.querySelectorAll('h4')) {
+        const fac = h4.textContent.trim();
+        if (!fac) continue;
+        let table = null;
+        for (let sib = h4.nextElementSibling; sib && !table; sib = sib.nextElementSibling) {
+          table = sib.tagName === 'TABLE' ? sib : sib.querySelector('table');
+        }
+        if (!table && h4.parentElement) table = h4.parentElement.querySelector('table');
+        if (!table) continue;
+        const rows = [...table.querySelectorAll('tr')];
+        if (!rows.length) continue;
+        const head = [...rows[0].querySelectorAll('th, td')];
+        const dateText = head[0] ? head[0].textContent.trim() : '';
+        const cols = [];
+        head.forEach((cell, ci) => {
+          if (ci <= 1) return;
+          const mm = cell.textContent.trim().match(/(\d{1,2}:\d{2})[～〜~]+(\d{1,2}:\d{2})/);
+          if (mm) cols.push({ ci, start: mm[1], end: mm[2] });
+        });
+        for (const row of rows.slice(1)) {
+          const cells = [...row.querySelectorAll('th, td')];
+          if (!cells.length) continue;
+          const men = cells[0].textContent.trim();
+          for (const col of cols) {
+            if (col.ci >= cells.length) continue;
+            const t = cells[col.ci].textContent.trim();
+            if (t.includes('○') || t.includes('△')) out.push({ fac, dateText, men, start: col.start, end: col.end });
+          }
+        }
+      }
+      return out;
+    });
+    const hhmm = t => { const [h, m] = t.split(':'); return `${pad(+h)}:${m}`; };
+    // 時間帯の画面の日付の文字から YYYY-MM-DD を作る(選んだ日付の中から月日で探す)
+    const dateOf = (text, candidates) => {
+      let m = text.match(/(\d{4})[年\/.-](\d{1,2})[月\/.-](\d{1,2})/);
+      if (m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+      m = text.match(/(\d{1,2})[月\/](\d{1,2})/);
+      if (m) return candidates.find(ds => ds.slice(5) === `${pad(+m[1])}-${pad(+m[2])}`) || '';
+      return candidates.length === 1 ? candidates[0] : '';
+    };
+
+    try {
+      step('トップを開く');
+      await page.goto(this.bookUrl, { waitUntil: 'load' });
+      await sleep(1000);
+      step('テニスを選ぶ');
+      await page.waitForSelector('#category_06', { state: 'attached' });
+      await nav(() => page.evaluate(() => document.getElementById('category_06').click()));
+      step('庭球場を選ぶ');
+      await page.waitForSelector('#checkShisetsu206001', { state: 'attached' });
+      await check('checkShisetsu206001');
+      await sleep(300);
+      await submit('next');
+
+      for (let month = 0; month < 4; month++) {
+        step(`カレンダー(${month + 1}か月目)の絞り込み`);
+        await applyFilters();
+        step(`カレンダー(${month + 1}か月目)を読む`);
+        await page.waitForSelector('#btnHyoji', { state: 'attached' });
+        const cal = await parseCalendar();
+        const lastDs = cal.map(x => x.ds).sort().pop() || '';
+        const targets = cal.filter(x => x.open && x.cb && matchFac(x.fac) && passDate(c, x.ds, holidays));
+        log(`  府中: 表 ${cal.length}マス / 対象施設の空き ${targets.length}日 (〜${lastDs})`);
+
+        for (let b = 0; b < targets.length; b += 30) {
+          const batch = targets.slice(b, b + 30);
+          step(`時間帯を見る ${b + 1}〜${b + batch.length}件目`);
+          await page.waitForSelector('#btnHyoji', { state: 'attached' });
+          // チェックをいったん全部外して、今回の分だけ付ける
+          await page.evaluate(ids => {
+            for (const el of document.querySelectorAll('table input[type="checkbox"]:checked')) {
+              if (ids.includes(el.id)) continue;
+              const l = document.querySelector(`label[for="${el.id}"]`); (l || el).click();
+              if (el.checked) { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            }
+          }, batch.map(x => x.cb));
+          let n = 0;
+          for (const x of batch) if (await check(x.cb)) n++;
+          if (!n) { log('  府中: チェックできなかったので飛ばします'); continue; }
+          await sleep(500);
+          await submit('next');
+          await page.waitForSelector('h4', { state: 'attached', timeout: 30000 }).catch(() => {});
+          const cands = [...new Set(batch.map(x => x.ds))];
+          for (const s of await parseTimeslots()) {
+            const f = matchFac(s.fac) || matchFac(batch.find(x => norm(x.fac) === norm(s.fac))?.fac || '');
+            if (!f) continue;
+            const ds = dateOf(s.dateText, cands.filter(d => batch.some(x => x.ds === d && matchFac(x.fac) === f)));
+            if (!ds || !passDate(c, ds, holidays)) continue;
+            const start = hhmm(s.start);
+            if (toMin(start) < c.fromMin) continue;
+            const key = `fuchu:${f.name}|${ds}|${s.men}|${start}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            hits.push({ site: 'fuchu', facility: f.name, date: ds, court: s.men, time: `${start}-${hhmm(s.end)}`, key });
+          }
+          log(`  府中: ここまで ${hits.length}枠`);
+          step('カレンダーに戻る');
+          if (!(await followLink('施設別空き状況'))) throw new Error('カレンダーへ戻るリンクが見つかりません');
+        }
+
+        if (!lastDs || lastDs >= c.endStr) break;
+        step('翌月へ');
+        if (!(await followLink('次へ'))) throw new Error('「次へ」(翌月)のリンクが見つかりません');
+      }
+    } catch (e) {
+      log(`  府中: 「${stepName}」で失敗: ${e.message} / ${page.url()}`);
+      fs.mkdirSync(DEBUG_DIR, { recursive: true });
+      await page.screenshot({ path: path.join(DEBUG_DIR, 'fuchu-error.png'), fullPage: true }).catch(() => {});
+      fs.writeFileSync(path.join(DEBUG_DIR, 'fuchu-error.html'), await page.content().catch(() => ''));
+      // 失敗した回は、全施設の前回の記録を残す(途中までに見つけた空きはそのまま使う)
+      for (const f of facs) failed.push({ prefix: this.prefix(f), from: startStr, to: c.endStr, msg: `${f.name}: 「${stepName}」で失敗(${e.message})` });
+    } finally {
+      await browser.close();
+    }
+    return { hits, failed };
+  },
+};
+
 const SITES = [
   { mod: MITAKA, cond: condOf(cfg.mitaka || legacyMitaka) },
   { mod: TOEI, cond: condOf(cfg.toei) },
+  { mod: FUCHU, cond: condOf(cfg.fuchu) },
 ].filter(s => s.cond);
 // node watch.js mitaka / node watch.js toei … そのサイトだけ処理する(重い都立公園に三鷹の通知が引きずられないよう分ける)
 const ONLY = process.argv[2] || '';
-const HANDLED = new Set(ONLY ? [ONLY] : ['mitaka', 'toei']);
+const HANDLED = new Set(ONLY ? [ONLY] : ['mitaka', 'toei', 'fuchu']);
 const RUN = SITES.filter(s => HANDLED.has(s.mod.id));
-const siteOfKey = k => String(k).startsWith('toei') ? 'toei' : 'mitaka';
+const siteOfKey = k => String(k).startsWith('toei') ? 'toei' : String(k).startsWith('fuchu:') ? 'fuchu' : 'mitaka';
 const mine = k => HANDLED.has(siteOfKey(k));
 
 // ---------------- LINE ----------------
