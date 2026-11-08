@@ -4,6 +4,7 @@ on:
   schedule:
     # 日本時間 6:07〜23:37 の30分おき(深夜0〜6時は停止)
     # GitHubの時刻はUTC(日本時間-9時間)なので、0-14時 と 21-23時 を指定
+    # ※GitHubの定期実行は飛ばされることがあるため、Google Apps Script からも30分おきに起動している
     - cron: "7,37 0-14,21-23 * * *"
   workflow_dispatch:      # 「Run workflow」ボタンで手動実行
     inputs:
@@ -22,7 +23,11 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
+    env:
+      LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+      LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+      RESET: ${{ inputs.reset }}
     steps:
       - uses: actions/checkout@v5
 
@@ -31,20 +36,35 @@ jobs:
           node-version: 24
 
       - name: 準備
-        run: npm install --no-audit --no-fund
-
-      - name: 空きをチェック
-        env:
-          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          RESET: ${{ inputs.reset }}
-        run: node watch.js
-
-      - name: 前回結果を保存
-        if: always()
         run: |
-          [ -f state.json ] || exit 0
+          npm install --no-audit --no-fund
           git config user.name "court-watch-bot"
           git config user.email "court-watch-bot@users.noreply.github.com"
+          cat > save.sh <<'SH'
+          [ -f state.json ] || exit 0
           git add state.json
-          git diff --cached --quiet || (git commit -m "空き状況を更新" && git push)
+          git diff --cached --quiet && exit 0
+          git commit -m "空き状況を更新($1)"
+          for i in 1 2 3; do
+            git pull --rebase -q && git push -q && exit 0
+            sleep 5
+          done
+          exit 1
+          SH
+
+      # 三鷹は数十秒で終わるので先に通知・保存まで済ませる
+      - name: 三鷹をチェック
+        run: node watch.js mitaka
+
+      - name: 三鷹の結果を保存
+        if: always()
+        run: bash save.sh 三鷹
+
+      # 都立公園はサイトが重く数分かかる
+      - name: 都立公園をチェック
+        if: always()
+        run: node watch.js toei
+
+      - name: 都立公園の結果を保存
+        if: always()
+        run: bash save.sh 都立公園
