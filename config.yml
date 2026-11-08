@@ -1,27 +1,40 @@
-# 三鷹テニスコート 空き監視の設定
+# テニスコート 空き監視の設定
 # 設定ページ(index.html)から保存されました。ここを直接書き換えてもOKです。
 
-# 監視する施設(room_id はコートチェッカーと同じ番号)
-facilities:
-  - name: "第一中学校"
-    room_id: 134
-  - name: "第六中学校"
-    room_id: 144
-  - name: "大沢総合グラウンド"
-    room_id: 24
-    exclude_courts: [6]   # 監視しないコート番号
+# ===== 三鷹市 =====
+mitaka:
+  enabled: true
+  # 監視する施設(room_id はコートチェッカーと同じ番号)
+  facilities:
+    - name: "第一中学校"
+      room_id: 134
+    - name: "第六中学校"
+      room_id: 144
+    - name: "大沢総合グラウンド"
+      room_id: 24
+      exclude_courts: [6]   # 監視しないコート番号
+  weekdays: [月, 火, 水, 木, 金, 土, 日]   # 監視する曜日
+  exclude_holidays: true   # 祝日を除くか
+  time_from: "18:00"   # この時刻以降に始まる枠だけ
+  days_ahead: 30   # 今日から何日先まで
+  date_from: ""   # この日より前は無視(不要なら空欄)
 
-# 監視する曜日(月 火 水 木 金 土 日)
-weekdays: [月, 火, 水, 木, 金, 土, 日]
-
-# 祝日を除くか(true=除く)
-exclude_holidays: true
-
-# この時刻以降に始まる枠だけ通知
-time_from: "18:00"
-
-# 今日から何日先まで見るか
-days_ahead: 30
-
-# この日より前は無視(不要なら空欄) 例: "2026-11-15"
-date_from: ""
+# ===== 都立公園 =====
+toei:
+  enabled: false
+  # bld / inst はコートチェッカーと同じ施設コード
+  facilities:
+    - name: "小金井公園"
+      bld: "1240"
+      inst: "12400020"
+    - name: "野川公園"
+      bld: "1260"
+      inst: "12600010"
+    - name: "府中の森公園"
+      bld: "1270"
+      inst: "12700020"
+  weekdays: [土, 日]   # 監視する曜日
+  exclude_holidays: false   # 祝日を除くか
+  time_from: "09:00"   # この時刻以降に始まる枠だけ
+  days_ahead: 30   # 今日から何日先まで
+  date_from: ""   # この日より前は無視(不要なら空欄)
