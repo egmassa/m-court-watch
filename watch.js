@@ -191,6 +191,7 @@ const TOEI = {
 
     for (const f of this.facilities(c)) {
       f._fails = 0;
+      const t0 = Date.now(); let weeks = 0;
       let week = monday;
       for (let w = 0; w < 12 && week <= c.endStr; w++) {
         let data = null, reason = '';
@@ -202,7 +203,7 @@ const TOEI = {
               'selectPpsClsCd=1000', 'selectPpsCd=1030', `selectBldCd=${f.bld}`, `selectInstCd=${f.inst}`, `iniBCd=${f.bld}`,
               `iniICd=${f.inst}_3`, `useDay=${useDay}`, 'selectSize=0', 'penaltyday=3', `selectAreaBcd=${f.bld}`, 'selectIcd=0',
               'initBcd=null', 'initIcd=null', 'initPpsClPpscd=null'].join('&') });
-            await sleep(600);
+            await sleep(400); // コートチェッカーの既定値と同じ
             const res = await req(this.base + '/web/rsvWOpeInstSrchVacantAjaxAction.do', { method: 'POST',
               headers: { ...form, 'X-Requested-With': 'XMLHttpRequest' },
               body: ['displayNo=prwrc2000', `useDay=${useDay}`, `bldCd=${f.bld}`, `instCd=${f.inst}`, `transVacantMode=${f.mode || 11}`, 'clearFlag=0'].join('&') });
@@ -241,8 +242,10 @@ const TOEI = {
         // 次の週(サイトが返す次週開始日。おかしければ+7日)
         const nw = data && data.nextWeekStartDay ? dsOf(data.nextWeekStartDay) : '';
         week = nw && nw > week ? nw : addDays(week, 7);
+        weeks++;
         await sleep(300);
       }
+      log(`  ${f.name}: ${weeks}週 ${Math.round((Date.now() - t0) / 1000)}秒`);
     }
     return { hits, failed };
   },
@@ -252,6 +255,12 @@ const SITES = [
   { mod: MITAKA, cond: condOf(cfg.mitaka || legacyMitaka) },
   { mod: TOEI, cond: condOf(cfg.toei) },
 ].filter(s => s.cond);
+// node watch.js mitaka / node watch.js toei … そのサイトだけ処理する(重い都立公園に三鷹の通知が引きずられないよう分ける)
+const ONLY = process.argv[2] || '';
+const HANDLED = new Set(ONLY ? [ONLY] : ['mitaka', 'toei']);
+const RUN = SITES.filter(s => HANDLED.has(s.mod.id));
+const siteOfKey = k => String(k).startsWith('toei') ? 'toei' : 'mitaka';
+const mine = k => HANDLED.has(siteOfKey(k));
 
 // ---------------- LINE ----------------
 // LINE_USER_ID の書き方で送り先が変わる
@@ -321,20 +330,49 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
 
 // ---------------- メイン ----------------
 (async () => {
-  if (!SITES.length) { log('config.yml に有効な施設がありません'); process.exit(1); }
+  const reset = process.env.RESET === 'true';
+  const prevAll = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
+  // 他のサイトの記録はそのまま残し、このサイトの分だけ入れ替える
+  const others = {
+    keys: (prevAll.keys || []).filter(k => !mine(k)),
+    slots: (prevAll.slots || []).filter(x => !mine(x.key)),
+    gone: (prevAll.gone || []).filter(x => !mine(x.key)),
+  };
+  const prev = reset ? { keys: [], slots: [], gone: [], line: prevAll.line } : {
+    keys: (prevAll.keys || []).filter(mine),
+    slots: (prevAll.slots || []).filter(x => mine(x.key)),
+    gone: (prevAll.gone || []).filter(x => mine(x.key)),
+    line: prevAll.line,
+  };
+  const writeState = st => fs.writeFileSync(STATE_FILE, JSON.stringify({
+    updated: new Date().toISOString(),
+    keys: [...others.keys, ...st.keys].sort(),
+    slots: [...others.slots, ...st.slots].sort((a, b) => (a.date + a.time + a.facility + a.court).localeCompare(b.date + b.time + b.facility + b.court)),
+    gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
+    line: st.line,
+  }, null, 1));
+
+  if (!RUN.length) {
+    // このサイトは監視オフ → 残っている記録を消して終わり
+    log(`${ONLY || '全サイト'}: 監視オフ`);
+    if (prev.keys.length || prev.slots.length || prev.gone.length) writeState({ keys: [], slots: [], gone: [], line: prevAll.line || null });
+    return;
+  }
 
   let holidays = {};
-  if (SITES.some(s => s.cond.excludeHolidays)) {
+  if (RUN.some(s => s.cond.excludeHolidays)) {
     try { holidays = await getJson('https://holidays-jp.github.io/api/v1/date.json'); }
     catch (e) { log('祝日データの取得に失敗(祝日除外なしで続行):', e.message); }
   }
 
   const hits = [], failed = [];
   let allFailed = true;
-  for (const { mod, cond: c } of SITES) {
+  for (const { mod, cond: c } of RUN) {
     log(`[${mod.name}] ${mod.facilities(c).map(f => f.name).join('・')} / ${c.weekdayLabels.join('')} / ${c.timeFrom}以降 / ${startStr}〜${c.endStr}`);
+    const t0 = Date.now();
     try {
       const r = await mod.collect(c, holidays);
+      log(`[${mod.name}] 所要 ${Math.round((Date.now() - t0) / 1000)}秒`);
       hits.push(...r.hits); failed.push(...r.failed);
       if (r.hits.length || !r.failed.length) allFailed = false;
       log(`[${mod.name}] 空き ${r.hits.length} 枠${r.failed.length ? ` / 取得失敗 ${r.failed.length} 件` : ''}`);
@@ -350,9 +388,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
     if (allFailed) process.exit(1); // 全部失敗 → 前回結果を消さないようにここで終了
   }
 
-  const reset = process.env.RESET === 'true';
   if (reset) log('基準をリセット: 今の空きをすべて通知します');
-  const prev = !reset && fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
   const fresh = hits.filter(h => !prev.keys.includes(h.key));
 
   log(`条件に合う空き: ${hits.length} 枠 / うち新規: ${fresh.length} 枠`);
@@ -365,7 +401,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
   if (fresh.length) {
     // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
     const ext = u => u + (u.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
-    const sitesInFresh = SITES.filter(s => fresh.some(h => h.site === s.mod.id)).map(s => s.mod);
+    const sitesInFresh = RUN.filter(s => fresh.some(h => h.site === s.mod.id)).map(s => s.mod);
     const links = (pageUrl ? `\n\n今の空き一覧\n${ext(pageUrl)}` : '') +
       sitesInFresh.map(m => `\n\n${m.name}の予約サイト\n${ext(m.bookUrl)}`).join('');
     let text;
@@ -409,7 +445,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
   // 取られた枠(前回あって今回なくなった枠)。条件を変えて対象外になっただけの枠は含めない
   const nowIso = new Date().toISOString();
   const stillTarget = sl => {
-    for (const { mod, cond: c } of SITES) {
+    for (const { mod, cond: c } of RUN) {
       const f = mod.facilities(c).find(x => sl.key && sl.key.startsWith(mod.prefix(x)));
       if (!f) continue;
       if (!mod.courtOk(f, sl.court)) return false;
@@ -419,10 +455,10 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
     return false;
   };
   const nowKeys = new Set(slots.map(x => x.key));
-  const goneNow = reset ? [] : prevSlots.filter(x => x.key && !nowKeys.has(x.key) && stillTarget(x))
+  const goneNow = prevSlots.filter(x => x.key && !nowKeys.has(x.key) && stillTarget(x))
     .map(x => ({ site: x.site || 'mitaka', facility: x.facility, date: x.date, court: x.court, time: x.time, key: x.key, goneAt: nowIso }));
   const limit = Date.now() - GONE_KEEP_HOURS * 3600e3;
-  const gone = [...(reset ? [] : (prev.gone || [])), ...goneNow]
+  const gone = [...(prev.gone || []), ...goneNow]
     .filter((x, i, a) => !nowKeys.has(x.key) && x.date >= startStr && new Date(x.goneAt) >= limit &&
       a.findIndex(y => y.key === x.key) === i)
     .sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court));
@@ -432,6 +468,6 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
     JSON.stringify(slots) === JSON.stringify(prevSlots) &&
     JSON.stringify(line) === JSON.stringify(prev.line || null) &&
     JSON.stringify(gone) === JSON.stringify(prev.gone || []);
-  if (same) { log('空き状況に変化なし(保存なし)'); return; }
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ updated: nowIso, keys, slots, gone, line }, null, 1));
+  if (same && !reset) { log('空き状況に変化なし(保存なし)'); return; }
+  writeState({ keys, slots, gone, line });
 })();
