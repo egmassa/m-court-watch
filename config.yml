@@ -21,7 +21,7 @@ mitaka:
 
 # ===== 都立公園 =====
 toei:
-  enabled: false
+  enabled: true
   # bld / inst はコートチェッカーと同じ施設コード
   facilities:
     - name: "祖師谷公園"
