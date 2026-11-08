@@ -60,15 +60,6 @@ jobs:
         if: always()
         run: bash save.sh 三鷹
 
-      # 都立公園はサイトが重く数分かかる
-      - name: 都立公園をチェック
-        if: always()
-        run: node watch.js toei
-
-      - name: 都立公園の結果を保存
-        if: always()
-        run: bash save.sh 都立公園
-
       # 府中は画面操作のためブラウザを使う(府中の監視がオンのときだけ準備する)
       - name: 府中の準備
         if: always()
@@ -86,6 +77,15 @@ jobs:
       - name: 府中の結果を保存
         if: always()
         run: bash save.sh 府中
+
+      # 都立公園はサイトが重いので最後に回す(三鷹・府中の結果を先に出すため)
+      - name: 都立公園をチェック
+        if: always()
+        run: node watch.js toei
+
+      - name: 都立公園の結果を保存
+        if: always()
+        run: bash save.sh 都立公園
 
       - name: 府中で止まった画面を保存
         if: always()
