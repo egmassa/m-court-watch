@@ -24,22 +24,13 @@ toei:
   enabled: true
   # bld / inst はコートチェッカーと同じ施設コード
   facilities:
-    - name: "祖師谷公園"
-      bld: "1070"
-      inst: "10700010"
-    - name: "高井戸公園"
-      bld: "1180"
-      inst: "11800030"
     - name: "小金井公園"
       bld: "1240"
       inst: "12400020"
     - name: "野川公園"
       bld: "1260"
       inst: "12600010"
-    - name: "府中の森公園"
-      bld: "1270"
-      inst: "12700020"
-  weekdays: [月, 火, 水, 木, 金, 土, 日]   # 監視する曜日
+  weekdays: [土, 日]   # 監視する曜日
   exclude_holidays: false   # 祝日を除くか
   time_from: "09:00"   # この時刻以降に始まる枠だけ
   days_ahead: 30   # 今日から何日先まで
