@@ -127,6 +127,8 @@ a{color:var(--accent)}
 .gtag{font-size:11px;color:var(--err);white-space:nowrap}
 .cd.goneonly{background:var(--chip);cursor:pointer}
 .cd .g{font-size:10px;color:var(--sub)}
+.cd .b.s-toei{background:#2a62c9}.cd .b.s-fuchu{background:#b35c00}
+.sitename{font-size:11px;font-weight:600;color:var(--sub);margin-left:6px}
 /* LINE残り通数 */
 .quota{margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--bg)}
 .qtxt{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
@@ -153,6 +155,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     <div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div>
     <div class="status" id="lineStatus" style="margin-top:2px"></div>
     <div class="msg" id="lineAlert"></div>
+    <div class="sitetabs" id="siteF" style="margin-top:10px"></div>
     <div id="slots" style="margin-top:10px"><div class="empty">読み込み中…</div></div>
     <div class="btns" style="margin-top:12px">
       <button id="runNow" class="needtok">今すぐチェック</button>
@@ -440,6 +443,10 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 
   // ---- 空き一覧(カレンダー / リスト) ----
   let lineInfo = null, slotData = null, view = 'cal', selDay = null, cfgSaved = { days: 30, weekdays: null };
+  let siteF = 'all';
+  try { siteF = localStorage.getItem('courtwatch_site') || 'all'; } catch {}
+  const SITE_NAME = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
+  const SITE_MARK = { mitaka: '三', toei: '都', fuchu: '府' };
   try { view = localStorage.getItem('courtwatch_view') || 'cal'; } catch {}
   let holidays = {};
   fetch('https://holidays-jp.github.io/api/v1/date.json').then(r => r.json()).then(h => { holidays = h; renderSlots(); }).catch(() => {});
@@ -510,7 +517,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
         `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('') +
         groupDay(gone).map(g =>
         `<div class="slot gone"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
-      return `<div class="fac"><div class="fh"><span>${shortFac(f)}</span>` +
+      return `<div class="fac"><div class="fh"><span>${shortFac(f)}<span class="sitename">${SITE_NAME[siteOfSlot(ls[0])] || ""}</span></span>` +
         (!act.length ? '' : room ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>`
           : SITE_TOP[siteOfSlot(ls[0])] ? `<a class="book" href="${SITE_TOP[siteOfSlot(ls[0])]}" target="_blank" rel="noopener">予約サイトへ ↗</a>` : '') +
         `</div>${rows}</div>`;
@@ -518,12 +525,22 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   };
   const dayHead = ds => { const { txt, dow } = jpDate(ds); return `<div class="d ${dow === 6 ? 'sat' : (dow === 0 || holidays[ds]) ? 'sun' : ''}">${txt}${holidays[ds] ? ' <span class="muted">' + holidays[ds] + '</span>' : ''}</div>`; };
 
+  function renderSiteTabs() {
+    const opts = [['all', 'すべて'], ['mitaka', '三鷹'], ['toei', '都立公園'], ['fuchu', '府中']];
+    $('siteF').innerHTML = opts.map(([k, l]) => `<button type="button" data-s="${k}" class="${siteF === k ? 'on' : ''}">${l}</button>`).join('');
+    $('siteF').querySelectorAll('button').forEach(b => b.onclick = () => {
+      siteF = b.dataset.s; try { localStorage.setItem('courtwatch_site', siteF); } catch {}
+      selDay = null; renderSlots();
+    });
+  }
+
   function renderSlots() {
     if (!slotData) return;
+    renderSiteTabs();
     $('vCal').classList.toggle('on', view === 'cal'); $('vList').classList.toggle('on', view === 'list');
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayS = dstr(today);
-    const future = slotData.filter(s => s.date >= todayS);
+    const future = slotData.filter(s => s.date >= todayS && (siteF === 'all' || siteOfSlot(s) === siteF));
     const byDay = {};
     future.forEach(s => (byDay[s.date] ||= []).push(s));
     const days = Object.keys(byDay).sort();
@@ -564,16 +581,16 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       let inner = `<span class="n">${label}</span>`;
       if (list) {
         const byFac = {}, gN = list.filter(s => s.gone).length;
-        list.filter(s => !s.gone).forEach(s => byFac[s.facility] = (byFac[s.facility] || 0) + 1);
+        list.filter(s => !s.gone).forEach(s => (byFac[s.facility] ||= { n: 0, site: siteOfSlot(s) }).n++);
         const facs = Object.entries(byFac);
-        inner += facs.slice(0, 2).map(([f, n]) => `<span class="b">${shortFac(f)}${n > 1 ? n : ''}</span>`).join('');
+        inner += facs.slice(0, 2).map(([f, v]) => `<span class="b${v.site !== 'mitaka' ? ' s-' + v.site : ''}">${SITE_MARK[v.site] || ''}${shortFac(f)}${v.n > 1 ? v.n : ''}</span>`).join('');
         if (facs.length > 2) inner += `<span class="more">+${facs.length - 2}</span>`;
         if (gN) inner += `<span class="g">埋${gN}</span>`;
       }
       html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
                    : `<div class="${cls}">${inner}</div>`;
     }
-    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。「埋」は直近24時間に埋まった枠。タップで下に詳細</div>';
+    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。「埋」は直近24時間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
       '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園・府中は予約サイトのトップが開きます</div>';
     $('slots').innerHTML = html;
