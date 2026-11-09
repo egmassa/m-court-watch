@@ -21,7 +21,7 @@ mitaka:
 
 # ===== 都立公園 =====
 toei:
-  enabled: true
+  enabled: false
   # bld / inst はコートチェッカーと同じ施設コード
   facilities:
     - name: "小金井公園"
