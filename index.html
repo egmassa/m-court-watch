@@ -36,6 +36,9 @@ header h1{font-size:19px;margin:0;flex:1}
 .card h2 .meta{margin-left:auto;font-size:12px;font-weight:normal;color:var(--sub)}
 .muted{color:var(--sub);font-size:13px}
 .status{font-size:12px;color:var(--sub);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.statusrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.statusrow button.mini{min-height:28px;padding:2px 10px;font-size:12px;border-radius:999px}
+.ver{font-size:11px;font-weight:normal;color:var(--sub);margin-left:4px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--sub);display:inline-block}
 .dot.ok{background:var(--accent)} .dot.ng{background:var(--err)} .dot.run{background:var(--warn)}
 .day{border-top:1px solid var(--line);padding:9px 0 7px}
@@ -146,20 +149,19 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 <div class="wrap">
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>コート空き監視</h1>
+    <h1>コート空き監視 <span class="ver">v2.0</span></h1>
   </header>
 
   <!-- 空き状況 -->
   <section class="card">
     <h2>今の空き <span class="muted" id="count" style="font-weight:normal;font-size:12px"></span><span class="viewtg"><button id="vCal" class="on" type="button">カレンダー</button><button id="vList" type="button">リスト</button></span></h2>
-    <div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div>
+    <div class="statusrow"><div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div><button id="reload" class="mini" type="button">表示を更新</button></div>
     <div class="status" id="lineStatus" style="margin-top:2px"></div>
     <div class="msg" id="lineAlert"></div>
     <div class="sitetabs" id="siteF" style="margin-top:10px"></div>
     <div id="slots" style="margin-top:10px"><div class="empty">読み込み中…</div></div>
     <div class="btns" style="margin-top:12px">
       <button id="runNow" class="needtok">今すぐチェック</button>
-      <button id="reload">表示を更新</button>
       <button id="resend" class="needtok">全部LINEで再送</button>
       <span class="sitelinks">予約サイト:
         <a href="https://yoyaku-mitaka.jp/reservation" target="_blank" rel="noopener">三鷹 ↗</a>
