@@ -512,11 +512,11 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     return Object.entries(byFac).map(([f, ls]) => {
       const room = roomOf(ls[0]), ds = ls[0].date;
       const act = ls.filter(x => !x.gone), gone = ls.filter(x => x.gone);
-      const goneTime = g => { const t = gone.filter(x => x.time === g.time).map(x => x.goneAt).sort()[0]; return t ? hm(t).split(' ')[1] : ''; };
+      const goneTime = g => { const t = gone.filter(x => x.time === g.time).map(x => x.goneAt).sort()[0]; return t ? hm(t) : ''; };
       const rows = groupDay(act).map(g =>
         `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('') +
         groupDay(gone).map(g =>
-        `<div class="slot gone"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
+        `<div class="slot gone"><span class="t">${jpDate(ds).txt} ${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
       return `<div class="fac"><div class="fh"><span>${shortFac(f)}<span class="sitename">${SITE_NAME[siteOfSlot(ls[0])] || ""}</span></span>` +
         (!act.length ? '' : room ? `<a class="book" href="${bookUrl(room, ds)}" target="_blank" rel="noopener">予約画面へ ↗</a>`
           : SITE_TOP[siteOfSlot(ls[0])] ? `<a class="book" href="${SITE_TOP[siteOfSlot(ls[0])]}" target="_blank" rel="noopener">予約サイトへ ↗</a>` : '') +
