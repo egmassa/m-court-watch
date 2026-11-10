@@ -128,6 +128,7 @@ a{color:var(--accent)}
 /* 埋まった枠 */
 .slot.gone .t,.slot.gone .f{text-decoration:line-through;color:var(--sub);font-weight:normal}
 .gtag{font-size:11px;color:var(--err);white-space:nowrap}
+.fnd{font-size:11px;color:var(--sub);white-space:nowrap}
 .cd.goneonly{background:var(--chip);cursor:pointer}
 .cd .g{font-size:10px;color:var(--sub)}
 .cd .b.s-toei{background:#2a62c9}.cd .b.s-fuchu{background:#b35c00}
@@ -446,6 +447,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   // ---- 空き一覧(カレンダー / リスト) ----
   let lineInfo = null, slotData = null, view = 'cal', selDay = null, cfgSaved = { days: 30, weekdays: null };
   let siteF = 'all';
+  let openAt = {};
   try { siteF = localStorage.getItem('courtwatch_site') || 'all'; } catch {}
   const SITE_NAME = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
   const SITE_MARK = { mitaka: '三', toei: '都', fuchu: '府' };
@@ -462,6 +464,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const { text } = await getFile('state.json');
       const st = JSON.parse(text);
       renderLine(st.line);
+      openAt = {};
+      (st.releases || []).forEach(r => { if (r.type === 'open' && r.key) openAt[r.key] = r.at; });
       slotData = (st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; }))
         .concat((st.gone || []).map(g => ({ ...g, gone: true })));
     } catch (e) {
@@ -515,8 +519,9 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const room = roomOf(ls[0]), ds = ls[0].date;
       const act = ls.filter(x => !x.gone), gone = ls.filter(x => x.gone);
       const goneTime = g => { const t = gone.filter(x => x.time === g.time).map(x => x.goneAt).sort()[0]; return t ? hm(t) : ''; };
+      const foundAt = g => { const ts = act.filter(x => x.facility === g.facility && x.time === g.time).map(x => openAt[x.key]).filter(Boolean).sort(); return ts[0] ? hm(ts[0]) : ''; };
       const rows = groupDay(act).map(g =>
-        `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span></div>`).join('') +
+        `<div class="slot"><span class="t">${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span>${foundAt(g) ? `<span class="fnd">${foundAt(g)}ごろ見つかった</span>` : ''}</div>`).join('') +
         groupDay(gone).map(g =>
         `<div class="slot gone"><span class="t">${jpDate(ds).txt} ${g.time}</span><span class="f">${g.courts.map(courtShort).join('・')}</span><span class="gtag">${goneTime(g)}ごろ埋まりました</span></div>`).join('');
       return `<div class="fac"><div class="fh"><span>${shortFac(f)}<span class="sitename">${SITE_NAME[siteOfSlot(ls[0])] || ""}</span></span>` +
