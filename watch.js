@@ -589,6 +589,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
     slots: [...others.slots, ...st.slots].sort((a, b) => (a.date + a.time + a.facility + a.court).localeCompare(b.date + b.time + b.facility + b.court)),
     gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
     line: st.line,
+    releases: st.releases || prevAll.releases || [],
   }, null, 1));
 
   if (!RUN.length) {
@@ -636,6 +637,9 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
   all.forEach(g => log(`${mark(g) || '   '}${g.facility} ${lineOf(g).slice(1)}`));
   summary(`### 条件に合う空き ${hits.length} 枠(新規 ${fresh.length} 枠)\n` +
     (all.length ? all.map(g => `- ${mark(g)}${g.facility} ${lineOf(g).slice(1)}`).join('\n') : '- なし'));
+
+  const newReleases = fresh.map(h => ({ at: new Date().toISOString(), site: h.site || 'mitaka', facility: h.facility, date: h.date, time: h.time, court: h.court, key: h.key }));
+  const releases = [...(prevAll.releases || []), ...newReleases].slice(-1000);
 
   if (fresh.length) {
     // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
@@ -708,5 +712,5 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
     JSON.stringify(line) === JSON.stringify(prev.line || null) &&
     JSON.stringify(gone) === JSON.stringify(prev.gone || []);
   if (same && !reset) { log('空き状況に変化なし(保存なし)'); return; }
-  writeState({ keys, slots, gone, line });
+  writeState({ keys, slots, gone, line, releases });
 })();
