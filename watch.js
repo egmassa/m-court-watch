@@ -638,8 +638,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
   summary(`### 条件に合う空き ${hits.length} 枠(新規 ${fresh.length} 枠)\n` +
     (all.length ? all.map(g => `- ${mark(g)}${g.facility} ${lineOf(g).slice(1)}`).join('\n') : '- なし'));
 
-  const newReleases = fresh.map(h => ({ at: new Date().toISOString(), site: h.site || 'mitaka', facility: h.facility, date: h.date, time: h.time, court: h.court, key: h.key }));
-  const releases = [...(prevAll.releases || []), ...newReleases].slice(-1000);
+  const newReleases = fresh.map(h => ({ type: 'open', at: new Date().toISOString(), site: h.site || 'mitaka', facility: h.facility, date: h.date, time: h.time, court: h.court, key: h.key }));
 
   if (fresh.length) {
     // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
@@ -706,6 +705,9 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
       a.findIndex(y => y.key === x.key) === i)
     .sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court));
   if (goneNow.length) log(`取られた枠: ${goneNow.length} 枠`);
+  // 出た時刻と埋まった時刻を、同じ記録(releases)に並べて残す(空いていた期間を出すため)
+  const goneReleases = goneNow.map(g => ({ type: 'gone', at: g.goneAt, site: g.site, facility: g.facility, date: g.date, time: g.time, court: g.court, key: g.key }));
+  const releases = [...(prevAll.releases || []), ...newReleases, ...goneReleases].slice(-2000);
 
   const same = JSON.stringify(keys) === JSON.stringify([...(prev.keys || [])].sort()) && prev.slots &&
     JSON.stringify(slots) === JSON.stringify(prevSlots) &&
