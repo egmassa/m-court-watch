@@ -150,7 +150,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 <div class="wrap">
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>コート空き監視 <span class="ver">v2.1</span></h1>
+    <h1>コート空き監視 <span class="ver">v2.3</span></h1>
   </header>
 
   <!-- 空き状況 -->
@@ -611,7 +611,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
                    : `<div class="${cls}">${inner}</div>`;
     }
-    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。「埋」は直近24時間に埋まった枠。タップで下に詳細</div>';
+    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。「埋」は過去7日間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
       '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園・府中は予約サイトのトップが開きます</div>';
     $('slots').innerHTML = html;
