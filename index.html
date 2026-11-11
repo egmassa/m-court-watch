@@ -459,6 +459,20 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   const dstr = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   const courtShort = c => c.replace('テニスコート', 'コート');
 
+  // 埋まった枠: 記録(releases)の gone を、過去7日分まで使う。古い形式の gone(直近24時間)もあわせて使う
+  function goneList(st) {
+    const cutoff = Date.now() - 7 * 24 * 3600e3;
+    const seen = new Set(), out = [];
+    const add = g => {
+      const k = `${g.key}|${g.goneAt}`;
+      if (!g.key || !g.goneAt || seen.has(k) || new Date(g.goneAt) < cutoff) return;
+      seen.add(k); out.push({ ...g, gone: true });
+    };
+    (st.releases || []).filter(r => r.type === 'gone').forEach(r => add({ site: r.site, facility: r.facility, date: r.date, court: r.court, time: r.time, key: r.key, goneAt: r.at }));
+    (st.gone || []).forEach(add);
+    return out;
+  }
+
   async function loadSlots() {
     try {
       const { text } = await getFile('state.json');
@@ -467,7 +481,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       openAt = {};
       (st.releases || []).forEach(r => { if (r.type === 'open' && r.key) openAt[r.key] = r.at; });
       slotData = (st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; }))
-        .concat((st.gone || []).map(g => ({ ...g, gone: true })));
+        .concat(goneList(st));
     } catch (e) {
       slotData = null;
       $('count').textContent = '';
