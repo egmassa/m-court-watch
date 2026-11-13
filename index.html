@@ -129,6 +129,8 @@ a{color:var(--accent)}
 .slot.gone .t,.slot.gone .f{text-decoration:line-through;color:var(--sub);font-weight:normal}
 .gtag{font-size:11px;color:var(--err);white-space:nowrap}
 .fnd{font-size:11px;color:var(--sub);white-space:nowrap}
+.cd .b.nwc{box-shadow:inset 0 0 0 2px #fff;font-weight:700}
+.cd .nw{font-size:9px;line-height:1;font-weight:700;background:#e0a100;color:#fff;border-radius:4px;padding:2px 3px;align-self:flex-start}
 .cd.goneonly{background:var(--chip);cursor:pointer}
 .cd .g{font-size:10px;color:var(--sub)}
 .cd .b.s-toei{background:#2a62c9}.cd .b.s-fuchu{background:#b35c00}
@@ -150,7 +152,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 <div class="wrap">
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>コート空き監視 <span class="ver">v2.3</span></h1>
+    <h1>コート空き監視 <span class="ver">v2.9</span></h1>
   </header>
 
   <!-- 空き状況 -->
@@ -159,6 +161,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     <div class="statusrow"><div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div><button id="reload" class="mini" type="button">表示を更新</button></div>
     <div class="status" id="lineStatus" style="margin-top:2px"></div>
     <div class="msg" id="lineAlert"></div>
+    <div class="msg ok" id="notifyBox" style="margin-top:10px"></div>
     <div class="sitetabs" id="siteF" style="margin-top:10px"></div>
     <div id="slots" style="margin-top:10px"><div class="empty">読み込み中…</div></div>
     <div class="btns" style="margin-top:12px">
@@ -447,7 +450,9 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   // ---- 空き一覧(カレンダー / リスト) ----
   let lineInfo = null, slotData = null, view = 'cal', selDay = null, cfgSaved = { days: 30, weekdays: null };
   let siteF = 'all';
-  let openAt = {};
+  let openAt = {}, openRuns = {};
+  // 通知のリンクから開いたときの時刻(#n=...)。その回で見つかった枠だけを目立たせる
+  const NOTIFY = (() => { const m = location.hash.match(/(?:^|[#&])n=([^&]+)/); try { return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
   try { siteF = localStorage.getItem('courtwatch_site') || 'all'; } catch {}
   const SITE_NAME = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
   const SITE_MARK = { mitaka: '三', toei: '都', fuchu: '府' };
@@ -478,8 +483,8 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const { text } = await getFile('state.json');
       const st = JSON.parse(text);
       renderLine(st.line);
-      openAt = {};
-      (st.releases || []).forEach(r => { if (r.type === 'open' && r.key) openAt[r.key] = r.at; });
+      openAt = {}; openRuns = {};
+      (st.releases || []).forEach(r => { if (r.type === 'open' && r.key) { openAt[r.key] = r.at; (openRuns[r.key] ||= new Set()).add(r.at); } });
       slotData = (st.slots || (st.keys || []).map(k => { const [, date, court, start] = k.split('|'); return { facility: '', date, court, time: start + '〜' }; }))
         .concat(goneList(st));
     } catch (e) {
@@ -568,6 +573,9 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     const active = future.filter(s => !s.gone), goneN = future.length - active.length;
     const actDays = new Set(active.map(s => s.date)).size;
     $('count').textContent = (active.length ? `${active.length}枠・${actDays}日` : '空きなし') + (goneN ? `(埋まった ${goneN})` : '');
+    const notifyN = NOTIFY ? active.filter(s => openRuns[s.key] && openRuns[s.key].has(NOTIFY)).length : 0;
+    $('notifyBox').classList.toggle('show', !!notifyN);
+    if (notifyN) $('notifyBox').textContent = `この通知で届いた空き: ${notifyN}枠(${hm(NOTIFY)}の回)`;
     if (!future.length) { $('slots').innerHTML = '<div class="empty">条件に合う空きはありません</div>'; return; }
 
     if (view === 'list') {
@@ -598,20 +606,26 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const off = !out && wdOn && !wdOn.includes(WD[dow]);
       const cls = ['cd', dow === 6 ? 'sat' : '', dow === 0 ? 'sun' : '', holidays[ds] ? 'hol' : '', ds === todayS ? 'today' : '',
         out ? 'out' : '', off ? 'off' : '', list && list.some(s => !s.gone) ? 'has' : list ? 'goneonly' : '', list && ds === selDay ? 'sel' : ''].join(' ');
+
       const label = d.getDate() === 1 ? `${d.getMonth() + 1}/1` : d.getDate();
+      // 過去24時間に新しく見つかった空きがある日に「新」を付ける
       let inner = `<span class="n">${label}</span>`;
       if (list) {
         const byFac = {}, gN = list.filter(s => s.gone).length;
-        list.filter(s => !s.gone).forEach(s => (byFac[s.facility] ||= { n: 0, site: siteOfSlot(s) }).n++);
+        list.filter(s => !s.gone).forEach(s => {
+          const e = (byFac[s.facility] ||= { n: 0, site: siteOfSlot(s), nw: false });
+          e.n++;
+          if (NOTIFY && openRuns[s.key] && openRuns[s.key].has(NOTIFY)) e.nw = true;
+        });
         const facs = Object.entries(byFac);
-        inner += facs.slice(0, 2).map(([f, v]) => `<span class="b${v.site !== 'mitaka' ? ' s-' + v.site : ''}">${SITE_MARK[v.site] || ''}${shortFac(f)}${v.n > 1 ? v.n : ''}</span>`).join('');
+        inner += facs.slice(0, 2).map(([f, v]) => `<span class="b${v.site !== 'mitaka' ? ' s-' + v.site : ''}${v.nw ? ' nwc' : ''}">${SITE_MARK[v.site] || ''}${shortFac(f)}${v.n > 1 ? v.n : ''}</span>`).join('');
         if (facs.length > 2) inner += `<span class="more">+${facs.length - 2}</span>`;
         if (gN) inner += `<span class="g">埋${gN}</span>`;
       }
       html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
                    : `<div class="${cls}">${inner}</div>`;
     }
-    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。「埋」は過去7日間に埋まった枠。タップで下に詳細</div>';
+    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。施設の札の白い太枠は、通知で届いた空き(通知のリンクから開いたときだけ表示)。「埋」は過去7日間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
       '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園・府中は予約サイトのトップが開きます</div>';
     $('slots').innerHTML = html;

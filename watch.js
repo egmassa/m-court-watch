@@ -638,13 +638,14 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
   summary(`### 条件に合う空き ${hits.length} 枠(新規 ${fresh.length} 枠)\n` +
     (all.length ? all.map(g => `- ${mark(g)}${g.facility} ${lineOf(g).slice(1)}`).join('\n') : '- なし'));
 
-  const newReleases = fresh.map(h => ({ type: 'open', at: new Date().toISOString(), site: h.site || 'mitaka', facility: h.facility, date: h.date, time: h.time, court: h.court, key: h.key }));
+  const runAt = new Date().toISOString(); // この回の時刻(通知のリンクにも入れて、同じ回の枠を目印にする)
+  const newReleases = fresh.map(h => ({ type: 'open', at: runAt, site: h.site || 'mitaka', facility: h.facility, date: h.date, time: h.time, court: h.court, key: h.key }));
 
   if (fresh.length) {
     // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
     const ext = u => u + (u.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
     const sitesInFresh = RUN.filter(s => fresh.some(h => h.site === s.mod.id)).map(s => s.mod);
-    const links = (pageUrl ? `\n\n今の空き一覧\n${ext(pageUrl)}` : '') +
+    const links = (pageUrl ? `\n\n今の空き一覧\n${pageUrl}?openExternalBrowser=1#n=${encodeURIComponent(runAt)}` : '') +
       sitesInFresh.map(m => `\n\n${m.name}の予約サイト\n${ext(m.bookUrl)}`).join('');
     let text;
     if (fresh.length > LINE_MAX) {
