@@ -129,6 +129,7 @@ a{color:var(--accent)}
 .slot.gone .t,.slot.gone .f{text-decoration:line-through;color:var(--sub);font-weight:normal}
 .gtag{font-size:11px;color:var(--err);white-space:nowrap}
 .fnd{font-size:11px;color:var(--sub);white-space:nowrap}
+.cd .b .rn{display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px #333;margin-right:3px;vertical-align:middle}
 .cd .b.nwc{box-shadow:inset 0 0 0 2px #fff;font-weight:700}
 .cd .nw{font-size:9px;line-height:1;font-weight:700;background:#e0a100;color:#fff;border-radius:4px;padding:2px 3px;align-self:flex-start}
 .cd.goneonly{background:var(--chip);cursor:pointer}
@@ -152,7 +153,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 <div class="wrap">
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>コート空き監視 <span class="ver">v2.9</span></h1>
+    <h1>コート空き監視 <span class="ver">v2.10</span></h1>
   </header>
 
   <!-- 空き状況 -->
@@ -613,19 +614,20 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       if (list) {
         const byFac = {}, gN = list.filter(s => s.gone).length;
         list.filter(s => !s.gone).forEach(s => {
-          const e = (byFac[s.facility] ||= { n: 0, site: siteOfSlot(s), nw: false });
+          const e = (byFac[s.facility] ||= { n: 0, site: siteOfSlot(s), nw: false, recent: false });
           e.n++;
           if (NOTIFY && openRuns[s.key] && openRuns[s.key].has(NOTIFY)) e.nw = true;
+          if (openAt[s.key] && (Date.now() - new Date(openAt[s.key])) < 24 * 3600e3) e.recent = true;
         });
         const facs = Object.entries(byFac);
-        inner += facs.slice(0, 2).map(([f, v]) => `<span class="b${v.site !== 'mitaka' ? ' s-' + v.site : ''}${v.nw ? ' nwc' : ''}">${SITE_MARK[v.site] || ''}${shortFac(f)}${v.n > 1 ? v.n : ''}</span>`).join('');
+        inner += facs.slice(0, 2).map(([f, v]) => `<span class="b${v.site !== 'mitaka' ? ' s-' + v.site : ''}${v.nw ? ' nwc' : ''}">${v.recent ? '<i class="rn"></i>' : ''}${SITE_MARK[v.site] || ''}${shortFac(f)}${v.n > 1 ? v.n : ''}</span>`).join('');
         if (facs.length > 2) inner += `<span class="more">+${facs.length - 2}</span>`;
         if (gN) inner += `<span class="g">埋${gN}</span>`;
       }
       html += list ? `<button class="${cls}" data-d="${ds}" type="button" aria-label="${jpDate(ds).txt} ${list.length}枠">${inner}</button>`
                    : `<div class="${cls}">${inner}</div>`;
     }
-    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。施設の札の白い太枠は、通知で届いた空き(通知のリンクから開いたときだけ表示)。「埋」は過去7日間に埋まった枠。タップで下に詳細</div>';
+    html += '</div><div class="legend">緑の日に空きあり(施設名の横の数字は枠数)。札の頭の「三」は三鷹・「都」は都立公園・「府」は府中。札の左の黄色い点は、過去24時間に新しく見つかった空き。白い太枠は、通知で届いた空き(通知のリンクから開いたときだけ)。「埋」は過去7日間に埋まった枠。タップで下に詳細</div>';
     html += `<div class="detail" id="detail">${dayHead(selDay)}${rowsHtml(byDay[selDay])}</div>` +
       '<div class="bookhint">三鷹の「予約画面へ」はコートチェッカーを入れたブラウザ(Safariなど)で、その日の時間帯選択画面まで自動で進みます。都立公園・府中は予約サイトのトップが開きます</div>';
     $('slots').innerHTML = html;
