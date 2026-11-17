@@ -162,7 +162,15 @@ document.getElementById('app').onclick = function(e){
   var t = e.target.closest ? e.target.closest('[data-act]') : null;
   if (!t) return;
   var a = t.getAttribute('data-act'), v = t.getAttribute('data-v');
-  if (a === 'site') { F.site = v; saveF(); }
+  if (a === 'site') {
+    F.site = v;
+    // 切り替え先にない施設の選択は外す(残すと、何も出なくなるため)
+    var names = {};
+    (DATA && DATA.facilities || []).forEach(function(x){ if (v === 'all' || x.site === v) names[x.name] = true; });
+    ((DATA && DATA.slots) || []).concat((DATA && DATA.gone7) || []).forEach(function(x){ if (v === 'all' || x.site === v) names[x.facility] = true; });
+    F.fac = F.fac.filter(function(n){ return names[n]; });
+    saveF();
+  }
   else if (a === 'wd') { toggle(F.wd, Number(v)); saveF(); }
   else if (a === 'tb') { toggle(F.tb, v); saveF(); }
   else if (a === 'fac') { toggle(F.fac, v); saveF(); }
