@@ -27,6 +27,8 @@ jobs:
     env:
       LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
       LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+      GAS_URL: ${{ secrets.GAS_URL }}                 # 並行書き込み先(ステージ2)
+      GAS_WRITE_TOKEN: ${{ secrets.GAS_WRITE_TOKEN }} # 書き込みの鍵(ステージ2)
       RESET: ${{ inputs.reset }}
     steps:
       - uses: actions/checkout@v5
