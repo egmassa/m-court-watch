@@ -37,6 +37,8 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .gone{color:var(--sub);text-decoration:line-through}
 .note{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
 #err{color:var(--err);margin-top:8px;font-size:14px}
+.bar{background:var(--card);border-radius:10px;padding:10px;margin-top:4px;font-size:13px;line-height:1.7;position:sticky;top:0;z-index:5}
+.bar .row{margin-top:6px}
 .fh{font-weight:700;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fh .sn{font-size:11px;color:var(--sub);font-weight:400}
 .book{margin-left:auto;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:3px 10px;white-space:nowrap}
@@ -151,6 +153,11 @@ document.getElementById('app').onclick = function(e){
     else { F = { site: 'all', wd: [], tb: [], fac: [] }; }
     saveF();
   }
+  else if (a === 'refresh') {
+    var sv = null;
+    try { sv = localStorage.getItem(KEY); } catch (e) {}
+    if (sv) { document.getElementById('err').textContent = '更新中…'; load(sv, false); return; }
+  }
   else if (a === 'day') { selDay = v; }
   else if (a === 'logout') { try { localStorage.removeItem(KEY); } catch (e) {} location.reload(); return; }
   render();
@@ -177,7 +184,11 @@ function render(){
   var days = Object.keys(byDay).sort();
   if (!selDay || !byDay[selDay]) selDay = days[0] || null;
 
-  var h = '<div class="note">登録済み(この端末) <button data-act="logout">別の合言葉</button></div>';
+  var h = '<div class="bar">' +
+    '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)</div>' +
+    '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
+    '<div class="row"><button data-act="refresh">更新</button><button data-act="logout">別の合言葉</button></div>' +
+    '</div>';
 
   h += '<div class="box"><div class="tabs">' + SITES.map(function(s){
     return '<button class="' + (F.site === s[0] ? 'on' : '') + '" data-act="site" data-v="' + s[0] + '">' + s[1] + '</button>';
@@ -252,7 +263,6 @@ function render(){
     });
     h += '</div>';
   }
-  h += '<div class="note">最終チェック: ' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '(巡回した時刻)<br>空きの最終変化: ' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '(空きが増えたり減ったりした時刻)</div>';
   document.getElementById('app').innerHTML = h;
 }
 </script></body></html>
