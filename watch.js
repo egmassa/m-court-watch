@@ -574,7 +574,7 @@ async function mirrorToGas() {
   const url = process.env.GAS_URL, token = process.env.GAS_WRITE_TOKEN;
   if (!url || !token) { log('GASへのコピー: 設定がないのでスキップ'); return; }
   try {
-    const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    const data = { ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')), checkedAt: new Date().toISOString() }; // 巡回した時刻
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -606,8 +606,15 @@ async function mirrorToGas() {
     gone: (prevAll.gone || []).filter(x => mine(x.key)),
     line: prevAll.line,
   };
+  // 監視しているサイト・施設の一覧(設定ページの設定どおり。データの有無には関係なく全部)
+  const watchList = ['mitaka', 'toei', 'fuchu'].flatMap(id => {
+    const sec = cfg[id];
+    if (!sec || sec.enabled === false) return [];
+    return (sec.facilities || []).filter(f => f.name && f.enabled !== false).map(f => ({ site: id, name: f.name }));
+  });
   const writeState = st => fs.writeFileSync(STATE_FILE, JSON.stringify({
     updated: new Date().toISOString(),
+    facilities: watchList,
     keys: [...others.keys, ...st.keys].sort(),
     slots: [...others.slots, ...st.slots].sort((a, b) => (a.date + a.time + a.facility + a.court).localeCompare(b.date + b.time + b.facility + b.court)),
     gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
