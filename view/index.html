@@ -1,11 +1,12 @@
-<!doctype html><html><head><meta charset="utf-8">
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>空き一覧</title>
+<link rel="icon" href="data:,">
 <style>
-:root{--bg:#111;--fg:#eee;--sub:#9a9a9a;--card:#1b1b1b;--line:#333;--chip:#222;--accent:#ffd23f;--on:#111;--err:#ff7a7a;--has:#1f3b26}
+:root{--bg:#111;--fg:#eee;--sub:#9a9a9a;--card:#1b1b1b;--line:#333;--chip:#222;--accent:#ffd23f;--on:#111;--err:#ff7a7a;--has:#1f3b26;--fu:#b35c00;--sb:#2a62c9}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:sans-serif;font-size:15px}
-body{padding:14px 12px 40px;max-width:720px;margin:0 auto}
+body{padding:12px 12px 40px;max-width:760px;margin:0 auto}
 h3{margin:2px 0 10px;font-size:18px}
 button{font:inherit;font-size:14px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--fg);cursor:pointer;min-height:34px}
 button.on{background:var(--accent);color:var(--on);border-color:var(--accent);font-weight:700}
@@ -13,36 +14,49 @@ button.sm{font-size:12px;padding:2px 8px;min-height:24px;margin-left:6px;color:v
 input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#222;color:var(--fg);min-width:0;flex:1}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .box{background:var(--card);border-radius:10px;padding:10px;margin-top:10px}
+.bar{background:var(--card);border-radius:10px;padding:10px;font-size:13px;line-height:1.7;position:sticky;top:0;z-index:5;margin-bottom:8px}
+.bar .row{margin-top:6px}
+.warn{color:var(--err)}
 .lbl{font-size:12px;color:var(--sub);margin:8px 0 4px;display:flex;align-items:center}
 .tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .tabs button{flex:1;border:0;border-radius:0;background:var(--card);color:var(--fg)}
 .tabs button+button{border-left:1px solid var(--line)}
 .tabs button.on{background:var(--accent);color:var(--on);font-weight:700}
-.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:12px}
+.nb{display:none;background:#2c2a10;border:1px solid var(--accent);border-radius:10px;padding:8px 10px;margin-top:10px;font-size:14px}
+.nb.show{display:block}
+.sum{font-size:14px;margin:10px 2px 0}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:10px}
 .cal .h{font-size:11px;text-align:center;color:var(--sub);padding-bottom:2px}
 .cal .h.sat{color:#6aa8ff}.cal .h.sun{color:var(--err)}
 .cd{all:unset;box-sizing:border-box;min-height:62px;border-radius:8px;padding:3px;background:var(--bg);display:flex;flex-direction:column;gap:2px;min-width:0;border:1px solid transparent}
 .cd.has{background:var(--has);cursor:pointer}
-.cd.has:hover,.cd.sel{border-color:var(--accent)}
-.cd.past{opacity:.35}
+.cd.goneonly{background:var(--chip);cursor:pointer}
+.cd.has:hover,.cd.goneonly:hover,.cd.sel{border-color:var(--accent)}
+.cd.past{opacity:.4}
+.cd.blank{background:transparent}
 .cd .n{font-size:11px;color:var(--sub)}
-.cd.sat .n{color:#6aa8ff}.cd.sun .n{color:var(--err)}
+.cd.sat .n{color:#6aa8ff}.cd.sun .n,.cd.hol .n{color:var(--err)}
 .cd.today .n{font-weight:700;color:var(--fg)}
 .cd .b{font-size:10px;line-height:1.25;background:var(--accent);color:var(--on);border-radius:4px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cd .b.fu{background:#b35c00;color:#fff}
+.cd .b.fu{background:var(--fu);color:#fff}
+.cd .b.sb{background:var(--sb);color:#fff}
+.cd .b.nwc{box-shadow:inset 0 0 0 2px #fff;font-weight:700}
 .cd .more{font-size:10px;color:var(--accent)}
-.day{font-weight:700;color:var(--accent);margin-bottom:4px}
-.item{padding:7px 0;border-bottom:1px solid var(--line)}
-.item .f{color:var(--sub);font-size:12px;margin-left:4px}
-.gone{color:var(--sub);text-decoration:line-through}
-.note{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
-#err{color:var(--err);margin-top:8px;font-size:14px}
-.bar{background:var(--card);border-radius:10px;padding:10px;margin-top:4px;font-size:13px;line-height:1.7;position:sticky;top:0;z-index:5}
-.bar .row{margin-top:6px}
+.cd .g{font-size:10px;color:var(--sub)}
+.rn{display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px #333;margin-right:4px;vertical-align:middle}
+.hol{font-size:11px;color:var(--err);font-weight:400;margin-left:6px}
+.day{font-weight:700;color:var(--accent);margin-top:12px}
 .fh{font-weight:700;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fh .sn{font-size:11px;color:var(--sub);font-weight:400}
 .book{margin-left:auto;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:3px 10px;white-space:nowrap}
 .book:hover{background:var(--accent);color:var(--on)}
+.item{padding:7px 0;border-bottom:1px solid var(--line)}
+.item .fnd{font-size:11px;color:var(--sub);margin-left:8px}
+.item.nwr{box-shadow:inset 3px 0 0 #fff;padding-left:8px}
+.item.gone{color:var(--sub);text-decoration:line-through}
+.item.gone .gt{text-decoration:none;font-size:11px;color:var(--err);margin-left:8px}
+.note{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
+#err{color:var(--err);margin-top:8px;font-size:14px}
 </style></head><body>
 <h3>空き一覧</h3>
 <div id="login" class="row">
@@ -52,21 +66,26 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 <div id="err"></div>
 <div id="app"></div>
 <script>
-var DATA = null;
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
+var KEY = 'courtview_key', FKEY = 'courtview_f', MKEY = 'courtview_mode';
+var DATA = null, HOL = {}, selDay = null, MODE = 'cal', NOTIFY = null;
 var F = { site: 'all', wd: [], tb: [], fac: [] };
-var selDay = null;
+try { var sf = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (sf) F = Object.assign(F, sf); } catch (e) {}
+try { MODE = localStorage.getItem(MKEY) || 'cal'; } catch (e) {}
+(function(){ var m = location.hash.match(/(?:^|[#&])n=([^&]+)/); if (m) { try { NOTIFY = decodeURIComponent(m[1]); } catch (e) {} } })();
+
 var WDN = ['日','月','火','水','木','金','土'];
 var SITES = [['all','すべて'],['mitaka','三鷹'],['fuchu','府中']];
+var SITE_NAME = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
+var SITE_TOP = { toei: 'https://kouen.sports.metro.tokyo.lg.jp/web/', fuchu: 'https://shisetsu.city.fuchu.tokyo.jp/web/Home/WgR_ModeSelect' };
 var TBS = [
   ['early','〜15時台', function(m){ return m < 960; }],
   ['mid','16〜17時台', function(m){ return m >= 960 && m < 1080; }],
   ['late','18時以降', function(m){ return m >= 1080; }]
 ];
-var KEY = 'courtview_key';
-var FKEY = 'courtview_f';
-try { var sf = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (sf) F = Object.assign(F, sf); } catch (e) {}
-function saveF(){ try { localStorage.setItem(FKEY, JSON.stringify(F)); } catch (e) {} }
 
+function saveF(){ try { localStorage.setItem(FKEY, JSON.stringify(F)); } catch (e) {} }
+function saveMode(){ try { localStorage.setItem(MKEY, MODE); } catch (e) {} }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function sha256(t){
   return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function(d){
@@ -77,18 +96,9 @@ function dstr(d){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padSta
 function startMin(t){ var p = String(t).split('-')[0].split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); }
 function wdOf(ds){ return new Date(ds + 'T00:00:00+09:00').getDay(); }
 function dayLabel(ds){ var d = ds.split('-'); return Number(d[1]) + '/' + Number(d[2]) + '(' + WDN[wdOf(ds)] + ')'; }
-function jst(iso){ try { return new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso; } }
+function jst(iso){ try { return new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return String(iso); } }
+function hm(iso){ var s = jst(iso); return s.slice(-5); }
 function shortFac(f){ return String(f).replace(/（.*）/, ''); }
-var SITE_NAME = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
-var SITE_TOP = { toei: 'https://kouen.sports.metro.tokyo.lg.jp/web/', fuchu: 'https://shisetsu.city.fuchu.tokyo.jp/web/Home/WgR_ModeSelect' };
-function bookLink(x){
-  if (x.site === 'mitaka') {
-    var room = String(x.key || '').split('|')[0];
-    if (room) return '<a class="book" href="https://yoyaku-mitaka.jp/reservation#cw-jump=' + room + '_' + x.date + '" target="_blank" rel="noopener">予約画面へ ↗</a>';
-  }
-  if (SITE_TOP[x.site]) return '<a class="book" href="' + SITE_TOP[x.site] + '" target="_blank" rel="noopener">予約サイトへ ↗</a>';
-  return '';
-}
 function toggle(a, v){ var i = a.indexOf(v); if (i < 0) a.push(v); else a.splice(i, 1); }
 function match(x){
   if (F.site !== 'all' && x.site !== F.site) return false;
@@ -101,9 +111,20 @@ function match(x){
   if (F.fac.length && F.fac.indexOf(x.facility) < 0) return false;
   return true;
 }
+function openAtOf(x){ return DATA && DATA.openAt ? DATA.openAt[x.key] : null; }
+function isNew(x){ var a = openAtOf(x); return !!a && (Date.now() - new Date(a).getTime()) < 86400000; }
+function isNotify(x){ var a = openAtOf(x); return !!NOTIFY && !!a && a === NOTIFY; }
+function cmp(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); }
+function bookLink(x){
+  if (x.site === 'mitaka') {
+    var room = String(x.key || '').split('|')[0];
+    if (room) return '<a class="book" href="https://yoyaku-mitaka.jp/reservation#cw-jump=' + room + '_' + x.date + '" target="_blank" rel="noopener">予約画面へ ↗</a>';
+  }
+  if (SITE_TOP[x.site]) return '<a class="book" href="' + SITE_TOP[x.site] + '" target="_blank" rel="noopener">予約サイトへ ↗</a>';
+  return '';
+}
 
 // ---- 合言葉(一度成功したら、この端末に登録) ----
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function load(h, remember){
   var err = document.getElementById('err');
   // text/plain で送ると、ブラウザが事前の確認(CORS の preflight)をしないで済む
@@ -132,10 +153,9 @@ document.getElementById('openBtn').onclick = function(){
   sha256(pw).then(function(h){ load(h, true); });
 };
 document.getElementById('pw').onkeydown = function(e){ if (e.key === 'Enter') document.getElementById('openBtn').click(); };
-try {
-  var saved = localStorage.getItem(KEY);
-  if (saved) load(saved, false);
-} catch (e) {}
+try { var saved = localStorage.getItem(KEY); if (saved) load(saved, false); } catch (e) {}
+fetch('https://holidays-jp.github.io/api/v1/date.json').then(function(r){ return r.json(); })
+  .then(function(j){ HOL = j || {}; if (DATA) render(); }).catch(function(){});
 
 // ---- 操作(ボタンは1か所でまとめて受ける) ----
 document.getElementById('app').onclick = function(e){
@@ -150,15 +170,17 @@ document.getElementById('app').onclick = function(e){
     if (v === 'wd') F.wd = [];
     else if (v === 'tb') F.tb = [];
     else if (v === 'fac') F.fac = [];
-    else { F = { site: 'all', wd: [], tb: [], fac: [] }; }
+    else F = { site: 'all', wd: [], tb: [], fac: [] };
     saveF();
   }
+  else if (a === 'mode') { MODE = v; saveMode(); }
+  else if (a === 'day') { selDay = v; }
   else if (a === 'refresh') {
     var sv = null;
     try { sv = localStorage.getItem(KEY); } catch (e) {}
-    if (sv) { document.getElementById('err').textContent = '更新中…'; load(sv, false); return; }
+    if (sv) { document.getElementById('err').textContent = '更新中…'; load(sv, false); }
+    return;
   }
-  else if (a === 'day') { selDay = v; }
   else if (a === 'logout') { try { localStorage.removeItem(KEY); } catch (e) {} location.reload(); return; }
   render();
 };
@@ -168,8 +190,10 @@ function render(){
   if (!DATA) return;
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var todayS = dstr(today);
+  var start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  var startS = dstr(start);
 
-  // 施設の一覧: 監視している施設(設定どおり)。データの有無には関係なく出す
+  // 施設の一覧(監視している施設。データの有無には関係なく出す)
   var facList = (DATA.facilities || []).filter(function(x){ return F.site === 'all' || x.site === F.site; });
   if (!facList.length) {
     var set = {};
@@ -177,19 +201,38 @@ function render(){
     facList = Object.keys(set).sort().map(function(n){ return { site: set[n], name: n }; });
   }
 
-  var byDay = {};
+  // 今の空き(今日以降)と、埋まった枠(7日間)を日ごとに
+  var activeKeys = {}, byDay = {}, goneByDay = {}, nAct = 0, nGone = 0;
   (DATA.slots || []).forEach(function(x){
-    if (x.date >= todayS && match(x)) { (byDay[x.date] = byDay[x.date] || []).push(x); }
+    activeKeys[x.key] = true;
+    if (x.date >= todayS && match(x)) { if (!byDay[x.date]) byDay[x.date] = []; byDay[x.date].push(x); nAct++; }
+  });
+  (DATA.gone7 || []).forEach(function(g){
+    if (activeKeys[g.key] || g.date < startS || !match(g)) return;
+    if (!goneByDay[g.date]) goneByDay[g.date] = [];
+    goneByDay[g.date].push(Object.assign({}, g, { gone: true }));
+    nGone++;
   });
   var days = Object.keys(byDay).sort();
-  if (!selDay || !byDay[selDay]) selDay = days[0] || null;
+  if (!selDay || (!byDay[selDay] && !goneByDay[selDay])) selDay = days[0] || null;
 
+  // 上の帯: 時刻・更新・ボタン
+  var ageWarn = '';
+  if (DATA.checkedAt && (Date.now() - new Date(DATA.checkedAt).getTime()) > 2 * 3600e3) ageWarn = ' <span class="warn">(2時間以上前です。古い可能性)</span>';
   var h = '<div class="bar">' +
-    '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)</div>' +
+    '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)' + ageWarn + '</div>' +
     '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
     '<div class="row"><button data-act="refresh">更新</button><button data-act="logout">別の合言葉</button></div>' +
     '</div>';
 
+  // 通知のリンクから開いたとき
+  var nN = 0;
+  if (NOTIFY) {
+    (DATA.slots || []).forEach(function(x){ if (isNotify(x) && match(x)) nN++; });
+    h += '<div class="nb show">この通知で届いた空き: ' + nN + '枠(' + esc(hm(NOTIFY)) + 'の回)</div>';
+  }
+
+  // 絞り込み
   h += '<div class="box"><div class="tabs">' + SITES.map(function(s){
     return '<button class="' + (F.site === s[0] ? 'on' : '') + '" data-act="site" data-v="' + s[0] + '">' + s[1] + '</button>';
   }).join('') + '</div>';
@@ -202,67 +245,84 @@ function render(){
   h += '<div class="lbl">施設(選ばなければ全部)<button class="sm" data-act="clr" data-v="fac">クリア</button></div><div class="row">' + facList.map(function(f){
     return '<button class="' + (F.fac.indexOf(f.name) >= 0 ? 'on' : '') + '" data-act="fac" data-v="' + esc(f.name) + '">' + esc(shortFac(f.name)) + '</button>';
   }).join('') + '</div>';
-  h += '<div class="lbl"><button class="sm" data-act="clr" data-v="all">すべて解除</button></div>';
+  h += '<div class="row" style="margin-top:8px"><button class="sm" data-act="clr" data-v="all">すべて解除</button></div>';
   h += '<div class="note">表示できるのは、巡回が集めた条件の範囲だけです。</div></div>';
 
-  // カレンダー: 今週の月曜から、監視している期間の最後の日(少なくとも30日先)まで
-  var start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  var end = new Date(today); end.setDate(end.getDate() + 30);
-  var lastS = (DATA.slots || []).reduce(function(m, x){ return x.date > m ? x.date : m; }, '');
-  if (lastS) { var ld = new Date(lastS + 'T00:00:00'); if (ld > end) end = ld; }
-  end.setDate(end.getDate() + (7 - end.getDay()) % 7);
+  // 件数と表示の切り替え
+  h += '<div class="sum">空き <b>' + nAct + '</b> 枠・' + days.length + ' 日' + (nGone ? '(埋まった ' + nGone + ' 枠・7日間)' : '') + '</div>';
+  h += '<div class="row" style="margin-top:6px"><button class="' + (MODE === 'cal' ? 'on' : '') + '" data-act="mode" data-v="cal">カレンダー</button>' +
+       '<button class="' + (MODE === 'list' ? 'on' : '') + '" data-act="mode" data-v="list">リスト</button></div>';
 
-  h += '<div class="cal">' + ['月','火','水','木','金','土','日'].map(function(w, i){
-    return '<div class="h' + (i === 5 ? ' sat' : i === 6 ? ' sun' : '') + '">' + w + '</div>';
-  }).join('');
-  for (var dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
-    var ds = dstr(dt), dow = dt.getDay(), list = byDay[ds] || [];
-    var label = (dt.getDate() === 1 || dt.getTime() === start.getTime()) ? (dt.getMonth() + 1) + '/' + dt.getDate() : String(dt.getDate());
-    var cls = 'cd' + (dow === 6 ? ' sat' : '') + (dow === 0 ? ' sun' : '') + (ds === todayS ? ' today' : '') +
-      (list.length ? ' has' : '') + (ds === selDay ? ' sel' : '') + (ds < todayS ? ' past' : '');
-    var inner = '<span class="n">' + label + '</span>';
-    if (list.length) {
-      var byF = {}, order = [];
-      list.forEach(function(x){
-        if (!byF[x.facility]) { byF[x.facility] = { n: 0, site: x.site }; order.push(x.facility); }
-        byF[x.facility].n++;
-      });
-      order.slice(0, 2).forEach(function(f){
-        inner += '<span class="b' + (byF[f].site === 'fuchu' ? ' fu' : '') + '">' + esc(shortFac(f)) + (byF[f].n > 1 ? ' ' + byF[f].n : '') + '</span>';
-      });
-      if (order.length > 2) inner += '<span class="more">+' + (order.length - 2) + '</span>';
-      h += '<button class="' + cls + '" data-act="day" data-v="' + ds + '">' + inner + '</button>';
-    } else {
-      h += '<div class="' + cls + '">' + inner + '</div>';
-    }
-  }
-  h += '</div>';
-  h += '<div class="note">緑の日に空きがあります。日付をタップすると下に詳細が出ます。施設名の横の数字は枠数です。</div>';
-
-  h += '<div class="box">';
-  if (selDay) {
-    h += '<div class="day">' + dayLabel(selDay) + '</div>';
-    var grp = {}, forder = [];
-    byDay[selDay].forEach(function(x){ if (!grp[x.facility]) { grp[x.facility] = []; forder.push(x.facility); } grp[x.facility].push(x); });
-    forder.forEach(function(f){
-      var ls = grp[f].slice().sort(function(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); });
-      h += '<div class="fh">' + esc(f) + ' <span class="sn">' + esc(SITE_NAME[ls[0].site] || '') + '</span>' + bookLink(ls[0]) + '</div>';
-      ls.forEach(function(x){ h += '<div class="item">' + esc(x.time) + ' ・ ' + esc(x.court) + '</div>'; });
-    });
+  if (MODE === 'list') {
+    var all = {};
+    Object.keys(byDay).concat(Object.keys(goneByDay)).forEach(function(d){ all[d] = true; });
+    Object.keys(all).sort().forEach(function(ds){ h += dayBlock(ds, byDay, goneByDay); });
+    if (!Object.keys(all).length) h += '<div class="box"><div class="note">条件に合う空きはありません</div></div>';
   } else {
-    h += '<div class="note">条件に合う空きはありません</div>';
-  }
-  h += '</div>';
+    // カレンダー: 今週の月曜から、監視している期間の最後の日(少なくとも30日先)の週の日曜まで
+    var end = new Date(today); end.setDate(end.getDate() + 30);
+    var lastS = (DATA.slots || []).reduce(function(m, x){ return x.date > m ? x.date : m; }, '');
+    if (lastS) { var ld = new Date(lastS + 'T00:00:00'); if (ld > end) end = ld; }
+    end.setDate(end.getDate() + (7 - end.getDay()) % 7);
 
-  var gone = (DATA.gone || []).filter(match).sort(function(a, b){ return String(b.goneAt).localeCompare(String(a.goneAt)); });
-  if (gone.length) {
-    h += '<div class="box"><div class="lbl">最近取られた枠(24時間)</div>';
-    gone.slice(0, 20).forEach(function(x){
-      h += '<div class="item gone">' + esc(dayLabel(x.date)) + ' ' + esc(x.time) + ' ・ ' + esc(x.court) +
-        '<span class="f">' + esc(x.facility) + ' / ' + esc(jst(x.goneAt)) + ' ごろ</span></div>';
-    });
+    h += '<div class="cal">' + ['月','火','水','木','金','土','日'].map(function(w, i){
+      return '<div class="h' + (i === 5 ? ' sat' : i === 6 ? ' sun' : '') + '">' + w + '</div>';
+    }).join('');
+    for (var dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+      var ds = dstr(dt), dow = dt.getDay(), list = byDay[ds] || [], gl = goneByDay[ds] || [];
+      var label = (dt.getDate() === 1 || dt.getTime() === start.getTime()) ? (dt.getMonth() + 1) + '/' + dt.getDate() : String(dt.getDate());
+      var cls = 'cd' + (dow === 6 ? ' sat' : '') + (dow === 0 ? ' sun' : '') + (HOL[ds] ? ' hol' : '') + (ds === todayS ? ' today' : '') +
+        (list.length ? ' has' : (gl.length ? ' goneonly' : '')) + (ds === selDay ? ' sel' : '') + (ds < todayS ? ' past' : '');
+      var inner = '<span class="n">' + label + '</span>';
+      if (list.length) {
+        var byF = {}, order = [];
+        list.forEach(function(x){
+          if (!byF[x.facility]) { byF[x.facility] = { n: 0, site: x.site, nw: false, nn: false }; order.push(x.facility); }
+          byF[x.facility].n++;
+          if (isNotify(x)) byF[x.facility].nw = true;
+          if (isNew(x)) byF[x.facility].nn = true;
+        });
+        order.slice(0, 2).forEach(function(f){
+          var o = byF[f];
+          inner += '<span class="b' + (o.site === 'fuchu' ? ' fu' : o.site === 'toei' ? ' sb' : '') + (o.nw ? ' nwc' : '') + '">' +
+            (o.nn ? '<i class="rn"></i>' : '') + esc(shortFac(f)) + (o.n > 1 ? ' ' + o.n : '') + '</span>';
+        });
+        if (order.length > 2) inner += '<span class="more">+' + (order.length - 2) + '</span>';
+      }
+      if (gl.length) inner += '<span class="g">埋' + gl.length + '</span>';
+      if (list.length || gl.length) h += '<button class="' + cls + '" data-act="day" data-v="' + ds + '">' + inner + '</button>';
+      else h += '<div class="' + cls + '">' + inner + '</div>';
+    }
     h += '</div>';
+    h += '<div class="note">緑の日に空き、灰色の日に埋まった枠があります。日付をタップすると下に詳細が出ます。札の黄色い点は、24時間以内に見つかった空きです。</div>';
+    if (selDay) h += '<div class="box">' + dayBlock(selDay, byDay, goneByDay) + '</div>';
   }
+
   document.getElementById('app').innerHTML = h;
+}
+
+function dayBlock(ds, byDay, goneByDay){
+  var act = byDay[ds] || [], gn = goneByDay[ds] || [];
+  var names = [], grp = {};
+  act.concat(gn).forEach(function(x){
+    if (!grp[x.facility]) { grp[x.facility] = { site: x.site, act: [], gone: [] }; names.push(x.facility); }
+    if (x.gone) grp[x.facility].gone.push(x); else grp[x.facility].act.push(x);
+  });
+  var h = '<div class="day">' + dayLabel(ds) + (HOL[ds] ? '<span class="hol">' + esc(HOL[ds]) + '</span>' : '') + '</div>';
+  names.forEach(function(f){
+    var g = grp[f];
+    h += '<div class="fh">' + esc(f) + ' <span class="sn">' + esc(SITE_NAME[g.site] || '') + '</span>' +
+      (g.act.length ? bookLink(g.act[0]) : '') + '</div>';
+    g.act.sort(cmp).forEach(function(x){
+      var at = openAtOf(x);
+      h += '<div class="item' + (isNotify(x) ? ' nwr' : '') + '">' + (isNew(x) ? '<i class="rn"></i>' : '') +
+        esc(x.time) + ' ・ ' + esc(x.court) + (at ? '<span class="fnd">' + esc(jst(at)) + ' ごろ見つかった</span>' : '') + '</div>';
+    });
+    g.gone.sort(cmp).forEach(function(x){
+      h += '<div class="item gone">' + esc(x.time) + ' ・ ' + esc(x.court) + '<span class="gt">' + esc(hm(x.goneAt)) + ' ごろ埋まりました</span></div>';
+    });
+  });
+  if (!names.length) h += '<div class="note">この日の空きはありません</div>';
+  return h;
 }
 </script></body></html>
