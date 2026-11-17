@@ -37,6 +37,10 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .gone{color:var(--sub);text-decoration:line-through}
 .note{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
 #err{color:var(--err);margin-top:8px;font-size:14px}
+.fh{font-weight:700;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fh .sn{font-size:11px;color:var(--sub);font-weight:400}
+.book{margin-left:auto;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.book:hover{background:var(--accent);color:var(--on)}
 </style></head><body>
 <h3>空き一覧</h3>
 <div id="login" class="row">
@@ -73,6 +77,16 @@ function wdOf(ds){ return new Date(ds + 'T00:00:00+09:00').getDay(); }
 function dayLabel(ds){ var d = ds.split('-'); return Number(d[1]) + '/' + Number(d[2]) + '(' + WDN[wdOf(ds)] + ')'; }
 function jst(iso){ try { return new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso; } }
 function shortFac(f){ return String(f).replace(/（.*）/, ''); }
+var SITE_NAME = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
+var SITE_TOP = { toei: 'https://kouen.sports.metro.tokyo.lg.jp/web/', fuchu: 'https://shisetsu.city.fuchu.tokyo.jp/web/Home/WgR_ModeSelect' };
+function bookLink(x){
+  if (x.site === 'mitaka') {
+    var room = String(x.key || '').split('|')[0];
+    if (room) return '<a class="book" href="https://yoyaku-mitaka.jp/reservation#cw-jump=' + room + '_' + x.date + '" target="_blank" rel="noopener">予約画面へ ↗</a>';
+  }
+  if (SITE_TOP[x.site]) return '<a class="book" href="' + SITE_TOP[x.site] + '" target="_blank" rel="noopener">予約サイトへ ↗</a>';
+  return '';
+}
 function toggle(a, v){ var i = a.indexOf(v); if (i < 0) a.push(v); else a.splice(i, 1); }
 function match(x){
   if (F.site !== 'all' && x.site !== F.site) return false;
@@ -87,7 +101,7 @@ function match(x){
 }
 
 // ---- 合言葉(一度成功したら、この端末に登録) ----
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qIFwuFd40B6u2rrpHczk/exec';
 function load(h, remember){
   var err = document.getElementById('err');
   // text/plain で送ると、ブラウザが事前の確認(CORS の preflight)をしないで済む
@@ -217,10 +231,13 @@ function render(){
   h += '<div class="box">';
   if (selDay) {
     h += '<div class="day">' + dayLabel(selDay) + '</div>';
-    byDay[selDay].sort(function(a, b){ return (a.time + a.facility + a.court).localeCompare(b.time + b.facility + b.court); })
-      .forEach(function(x){
-        h += '<div class="item">' + esc(x.time) + ' ・ ' + esc(x.court) + '<span class="f">' + esc(x.facility) + '</span></div>';
-      });
+    var grp = {}, forder = [];
+    byDay[selDay].forEach(function(x){ if (!grp[x.facility]) { grp[x.facility] = []; forder.push(x.facility); } grp[x.facility].push(x); });
+    forder.forEach(function(f){
+      var ls = grp[f].slice().sort(function(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); });
+      h += '<div class="fh">' + esc(f) + ' <span class="sn">' + esc(SITE_NAME[ls[0].site] || '') + '</span>' + bookLink(ls[0]) + '</div>';
+      ls.forEach(function(x){ h += '<div class="item">' + esc(x.time) + ' ・ ' + esc(x.court) + '</div>'; });
+    });
   } else {
     h += '<div class="note">条件に合う空きはありません</div>';
   }
@@ -235,7 +252,7 @@ function render(){
     });
     h += '</div>';
   }
-  h += '<div class="note">最終更新: ' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</div>';
+  h += '<div class="note">最終チェック: ' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '(巡回した時刻)<br>空きの最終変化: ' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '(空きが増えたり減ったりした時刻)</div>';
   document.getElementById('app').innerHTML = h;
 }
 </script></body></html>
