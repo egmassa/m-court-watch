@@ -567,6 +567,29 @@ function group(list) {
 }
 const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trimEnd();
 
+// ---------------- GAS へのコピー(ステージ2: 並行書き込み) ----------------
+// state.json の最終内容を、Google Apps Script 経由で Drive にも保存する。
+// 失敗しても巡回は止めず、ログに残すだけ(GitHub 側の保存が本体)。
+async function mirrorToGas() {
+  const url = process.env.GAS_URL, token = process.env.GAS_WRITE_TOKEN;
+  if (!url || !token) { log('GASへのコピー: 設定がないのでスキップ'); return; }
+  try {
+    const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, data }),
+      redirect: 'follow',
+    });
+    const txt = await res.text();
+    let ok = false;
+    try { ok = JSON.parse(txt).ok === true; } catch (e) { /* 応答がJSONでない */ }
+    log(ok ? 'GASへのコピー: 成功' : `GASへのコピー: 応答が想定外(${res.status}) ${txt.slice(0, 120)}`);
+  } catch (e) {
+    log('GASへのコピー: 失敗(無視して続行)', e.message);
+  }
+}
+
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
@@ -714,6 +737,7 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
     JSON.stringify(slots) === JSON.stringify(prevSlots) &&
     JSON.stringify(line) === JSON.stringify(prev.line || null) &&
     JSON.stringify(gone) === JSON.stringify(prev.gone || []);
-  if (same && !reset) { log('空き状況に変化なし(保存なし)'); return; }
-  writeState({ keys, slots, gone, line, releases });
+  if (same && !reset) log('空き状況に変化なし(保存なし)');
+  else writeState({ keys, slots, gone, line, releases });
+  await mirrorToGas(); // 変化がない回も、最新の state.json を GAS に送る
 })();
