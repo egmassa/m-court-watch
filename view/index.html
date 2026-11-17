@@ -60,7 +60,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 </style></head><body>
 <h3>空き一覧</h3>
 <div id="login" class="row">
-  <input id="pw" type="password" placeholder="合言葉">
+  <input id="pw" type="text" placeholder="合言葉" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="openBtn">開く</button>
 </div>
 <div id="err"></div>
@@ -218,11 +218,11 @@ function render(){
 
   // 上の帯: 時刻・更新・ボタン
   var ageWarn = '';
-  if (DATA.checkedAt && (Date.now() - new Date(DATA.checkedAt).getTime()) > 2 * 3600e3) ageWarn = ' <span class="warn">(2時間以上前です。古い可能性)</span>';
+  if (DATA.checkedAt && (Date.now() - new Date(DATA.checkedAt).getTime()) > 30 * 60e3) ageWarn = '<div class="warn">最終チェックから30分以上たっています。「更新」を押してください</div>';
   var h = '<div class="bar">' +
     '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)' + ageWarn + '</div>' +
     '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
-    '<div class="row"><button data-act="refresh">更新</button><button data-act="logout">別の合言葉</button></div>' +
+    '<div class="row"><button data-act="refresh">更新</button></div>' +
     '</div>';
 
   // 通知のリンクから開いたとき
@@ -298,6 +298,7 @@ function render(){
     if (selDay) h += '<div class="box">' + dayBlock(selDay, byDay, goneByDay) + '</div>';
   }
 
+  h += '<div class="box" style="text-align:center"><button data-act="logout">別の合言葉を登録し直す</button></div>';
   document.getElementById('app').innerHTML = h;
 }
 
