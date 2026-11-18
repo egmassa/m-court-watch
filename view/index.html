@@ -114,6 +114,7 @@ function match(x){
 function openAtOf(x){ return DATA && DATA.openAt ? DATA.openAt[x.key] : null; }
 function isNew(x){ var a = openAtOf(x); return !!a && (Date.now() - new Date(a).getTime()) < 86400000; }
 function isNotify(x){ var a = openAtOf(x); return !!NOTIFY && !!a && a === NOTIFY; }
+function isMarkRun(x){ var run = NOTIFY || (DATA && DATA.lastOpenAt); var a = openAtOf(x); return !!run && !!a && a === run; }
 function cmp(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); }
 function bookLink(x){
   if (x.site === 'mitaka') {
@@ -231,6 +232,7 @@ function render(){
   if (DATA.checkedAt && (Date.now() - new Date(DATA.checkedAt).getTime()) > 30 * 60e3) ageWarn = '<div class="warn">最終チェックから30分以上たっています。「更新」を押してください</div>';
   var h = '<div class="bar">' +
     '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)' + ageWarn + '</div>' +
+    (DATA.lastOpenAt ? '<div>直近で新しく見つかった空き: <b>' + esc(jst(DATA.lastOpenAt)) + '</b>(白い枠)</div>' : '') +
     '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
     '<div class="row"><button data-act="refresh">更新</button></div>' +
     '</div>';
@@ -289,7 +291,7 @@ function render(){
         list.forEach(function(x){
           if (!byF[x.facility]) { byF[x.facility] = { n: 0, site: x.site, nw: false, nn: false }; order.push(x.facility); }
           byF[x.facility].n++;
-          if (isNotify(x)) byF[x.facility].nw = true;
+          if (isMarkRun(x)) byF[x.facility].nw = true;
           if (isNew(x)) byF[x.facility].nn = true;
         });
         order.slice(0, 2).forEach(function(f){
@@ -326,7 +328,7 @@ function dayBlock(ds, byDay, goneByDay){
       (g.act.length ? bookLink(g.act[0]) : '') + '</div>';
     g.act.sort(cmp).forEach(function(x){
       var at = openAtOf(x);
-      h += '<div class="item' + (isNotify(x) ? ' nwr' : '') + '">' + (isNew(x) ? '<i class="rn"></i>' : '') +
+      h += '<div class="item' + (isMarkRun(x) ? ' nwr' : '') + '">' + (isNew(x) ? '<i class="rn"></i>' : '') +
         esc(x.time) + ' ・ ' + esc(x.court) + (at ? '<span class="fnd">' + esc(jst(at)) + ' ごろ見つかった</span>' : '') + '</div>';
     });
     g.gone.sort(cmp).forEach(function(x){
