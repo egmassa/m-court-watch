@@ -570,11 +570,11 @@ const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trim
 // ---------------- GAS へのコピー(ステージ2: 並行書き込み) ----------------
 // state.json の最終内容を、Google Apps Script 経由で Drive にも保存する。
 // 失敗しても巡回は止めず、ログに残すだけ(GitHub 側の保存が本体)。
-async function mirrorToGas() {
+async function mirrorToGas(extra = {}) {
   const url = process.env.GAS_URL, token = process.env.GAS_WRITE_TOKEN;
   if (!url || !token) { log('GASへのコピー: 設定がないのでスキップ'); return; }
   try {
-    const data = { ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')), checkedAt: new Date().toISOString() }; // 巡回した時刻
+    const data = { ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')), checkedAt: new Date().toISOString(), ...extra }; // 巡回した時刻(extra: 今回の巡回で新しく見つかった時刻)
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -761,5 +761,5 @@ async function mirrorToGas() {
     JSON.stringify(gone) === JSON.stringify(prev.gone || []);
   if (same && !reset) log('空き状況に変化なし(保存なし)');
   else writeState({ keys, slots, gone, line, releases });
-  await mirrorToGas(); // 変化がない回も、最新の state.json を GAS に送る
+  await mirrorToGas({ runOpenAt: fresh.length ? runAt : null }); // 変化がない回も、最新の state.json を GAS に送る。今回の巡回で新しく見つかったときだけ runOpenAt を付ける
 })();
