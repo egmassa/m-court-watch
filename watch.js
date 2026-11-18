@@ -612,9 +612,24 @@ async function mirrorToGas() {
     if (!sec || sec.enabled === false) return [];
     return (sec.facilities || []).filter(f => f.name && f.enabled !== false).map(f => ({ site: id, name: f.name }));
   });
+  // 巡回の条件(結果の画面に「今この条件で巡回中」として出す。設定の値そのまま)
+  const conditions = {};
+  ['mitaka', 'toei', 'fuchu'].forEach(id => {
+    const sec = cfg[id] || (id === 'mitaka' ? legacyMitaka : null);
+    if (!sec || sec.enabled === false) return;
+    conditions[id] = {
+      weekdays: sec.weekdays || [],
+      exclude_holidays: !!sec.exclude_holidays,
+      time_from: sec.time_from || '',
+      days_ahead: sec.days_ahead || null,
+      date_from: sec.date_from || '',
+      facilities: (sec.facilities || []).filter(f => f.name && f.enabled !== false).map(f => f.name),
+    };
+  });
   const writeState = st => fs.writeFileSync(STATE_FILE, JSON.stringify({
     updated: new Date().toISOString(),
     facilities: watchList,
+    conditions,
     keys: [...others.keys, ...st.keys].sort(),
     slots: [...others.slots, ...st.slots].sort((a, b) => (a.date + a.time + a.facility + a.court).localeCompare(b.date + b.time + b.facility + b.court)),
     gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
