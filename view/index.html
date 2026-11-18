@@ -328,7 +328,7 @@ function dayBlock(ds, byDay, goneByDay){
         esc(x.time) + ' ・ ' + esc(x.court) + (at ? '<span class="fnd">' + esc(jst(at)) + ' ごろ見つかった</span>' : '') + '</div>';
     });
     g.gone.sort(cmp).forEach(function(x){
-      h += '<div class="item gone">' + esc(x.time) + ' ・ ' + esc(x.court) + '<span class="gt">' + esc(hm(x.goneAt)) + ' ごろ埋まりました</span></div>';
+      h += '<div class="item gone">' + esc(x.time) + ' ・ ' + esc(x.court) + '<span class="gt">' + esc(jst(x.goneAt)) + ' ごろ埋まりました</span></div>';
     });
   });
   if (!names.length) h += '<div class="note">この日の空きはありません</div>';
