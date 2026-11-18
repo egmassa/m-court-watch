@@ -116,7 +116,7 @@ function match(x){
 function openAtOf(x){ return DATA && DATA.openAt ? DATA.openAt[x.key] : null; }
 function isNew(x){ var a = openAtOf(x); return !!a && (Date.now() - new Date(a).getTime()) < 86400000; }
 function isNotify(x){ var a = openAtOf(x); return !!NOTIFY && !!a && a === NOTIFY; }
-function isMarkRun(x){ var run = NOTIFY || (DATA && DATA.lastOpenAt); var a = openAtOf(x); return !!run && !!a && a === run; }
+function isMarkRun(x){ var run = NOTIFY || (DATA && DATA.runOpenAt); var a = openAtOf(x); return !!run && !!a && a === run; }
 function cmp(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); }
 function bookLink(x){
   if (x.site === 'mitaka') {
@@ -250,7 +250,7 @@ function render(){
 
   var h = '<div class="bar">' + condBlock +
     '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)' + ageWarn + '</div>' +
-    (DATA.lastOpenAt ? '<div>直近で新しく見つかった空き: <b>' + esc(jst(DATA.lastOpenAt)) + '</b>(白い枠)</div>' : '') +
+    (DATA.runOpenAt ? '<div>直近の巡回(' + esc(jst(DATA.checkedAt)) + ')で新しく見つかった空き: <b>' + esc(jst(DATA.runOpenAt)) + '</b>(白い枠)</div>' : '<div>直近の巡回(' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + ')では、新しく見つかった空きはありません</div>') +
     '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
     '<div class="row"><button data-act="refresh">更新</button></div>' +
     '</div>';
