@@ -45,6 +45,8 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .cd .g{font-size:10px;color:var(--sub)}
 .rn{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px #0c1f14;margin-right:4px;vertical-align:middle}
 .hol{font-size:11px;color:var(--err);font-weight:400;margin-left:6px}
+.cond{font-size:12px;color:var(--sub);line-height:1.6;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.cond b{color:var(--fg)}
 .day{font-weight:700;color:var(--accent);margin-top:12px}
 .fh{font-weight:700;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fh .sn{font-size:11px;color:var(--sub);font-weight:400}
@@ -230,7 +232,23 @@ function render(){
   // 上の帯: 時刻・更新・ボタン
   var ageWarn = '';
   if (DATA.checkedAt && (Date.now() - new Date(DATA.checkedAt).getTime()) > 30 * 60e3) ageWarn = '<div class="warn">最終チェックから30分以上たっています。「更新」を押してください</div>';
-  var h = '<div class="bar">' +
+  // 巡回の条件(最後の巡回で使った条件。空きがないときも、何を見ているかがわかる)
+  var condNames = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
+  var condHtml = '';
+  if (DATA.conditions) {
+    Object.keys(DATA.conditions).forEach(function(id){
+      var c = DATA.conditions[id];
+      var parts = [(c.weekdays && c.weekdays.length ? c.weekdays.join('') : '曜日指定なし') + (c.exclude_holidays ? '(祝日除く)' : '')];
+      if (c.time_from) parts.push(c.time_from + '以降');
+      if (c.days_ahead) parts.push(c.days_ahead + '日先まで');
+      if (c.date_from) parts.push(c.date_from + '以降');
+      condHtml += '<div>' + esc(condNames[id] || id) + ': ' + esc((c.facilities || []).map(shortFac).join('・')) + ' / ' + esc(parts.join(' / ')) + '</div>';
+    });
+  }
+  var condBlock = '<div class="cond"><b>今この条件で巡回中</b>(最後の巡回時点)' +
+    (condHtml || '<div>条件は次の巡回で表示されます</div>') + '</div>';
+
+  var h = '<div class="bar">' + condBlock +
     '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)' + ageWarn + '</div>' +
     (DATA.lastOpenAt ? '<div>直近で新しく見つかった空き: <b>' + esc(jst(DATA.lastOpenAt)) + '</b>(白い枠)</div>' : '') +
     '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
