@@ -163,6 +163,8 @@ document.getElementById('app').onclick = function(e){
   if (!t) return;
   var a = t.getAttribute('data-act'), v = t.getAttribute('data-v');
   if (a === 'site') {
+    // 「すべて」のタブは、絞り込みを全部解除する
+    if (v === 'all') { F = { site: 'all', wd: [], tb: [], fac: [] }; saveF(); render(); return; }
     F.site = v;
     // 切り替え先にない施設の選択は外す(残すと、何も出なくなるため)
     var names = {};
