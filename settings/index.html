@@ -59,6 +59,8 @@ var KEY = 'courtset_key';
 var WD = ['月','火','水','木','金','土','日'];
 var SITES = [['mitaka','三鷹'],['fuchu','府中'],['toei','都立公園']];
 var TAB = 'mitaka';
+// 府中の施設(オーナー画面と同じ 15 施設。府中は名前で探すので、名前がそのまま使われる)
+var FUCHU_LIST = ['郷土の森庭球場','寿町庭球場','武蔵台庭球場','小柳庭球場（Ａ～Ｄ）','小柳庭球場E','押立庭球場','四谷庭球場','栄町庭球場','住吉庭球場','若松庭球場','西府庭球場','日新第２庭球場','紅葉丘庭球場','紅葉丘第２庭球場','平和の森庭球場'];
 var CAP = { toei: 2, fuchu: 6 }; // 施設の上限(全員の合計)
 var PERIODS = [['d14','今日から14日'],['d30','今日から30日'],['next','来月'],['this','今月']];
 var TIMES = [['00:00','指定なし'],['09:00','9時以降'],['15:00','15時以降'],['16:00','16時以降'],['17:00','17時以降'],['18:00','18時以降'],['19:00','19時以降']];
@@ -174,7 +176,7 @@ function render(){
 
 function siteCard(id, name){
   var c = C[id];
-  var names = CATALOG[id] || [];
+  var names = id === 'fuchu' ? FUCHU_LIST : (CATALOG[id] || []);
   var h = '<div class="card"><h2><span>' + esc(name) + '</span>';
   h += '<label class="toggle"><input type="checkbox" data-act="enable" data-s="' + id + '"' + (c.enabled ? ' checked' : '') + '> 監視する</label></h2>';
 
