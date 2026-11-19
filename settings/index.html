@@ -30,6 +30,10 @@ select{width:100%}
 .toggle{display:flex;align-items:center;gap:6px;font-size:14px}
 .hidden{display:none}
 .last{font-size:12px;color:var(--sub);margin-top:8px}
+.tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:12px}
+.tabs button{flex:1;border:0;border-radius:0;background:var(--card);color:var(--fg);min-height:40px}
+.tabs button+button{border-left:1px solid var(--line)}
+.tabs button.on{background:var(--accent);color:var(--on);font-weight:700}
 </style></head><body>
 <div class="wrap">
   <h1>監視の条件を変える</h1>
@@ -51,7 +55,8 @@ select{width:100%}
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 var KEY = 'courtset_key';
 var WD = ['月','火','水','木','金','土','日'];
-var SITES = [['mitaka','三鷹'],['toei','都立公園'],['fuchu','府中']];
+var SITES = [['mitaka','三鷹'],['fuchu','府中'],['toei','都立公園']];
+var TAB = 'mitaka';
 var CAP = { toei: 2, fuchu: 6 }; // 施設の上限(全員の合計)
 var PERIODS = [['d14','今日から14日'],['d30','今日から30日'],['next','来月'],['this','今月']];
 var TIMES = [['00:00','指定なし'],['09:00','9時以降'],['15:00','15時以降'],['16:00','16時以降'],['17:00','17時以降'],['18:00','18時以降'],['19:00','19時以降']];
@@ -151,9 +156,13 @@ function removedCount(id, oldC, newC){
 // ---- 画面 ----
 function render(){
   var h = '';
-  var last = D && D.updatedAt ? '最終保存: ' + jst(D.updatedAt) + (D.updatedBy ? '（' + esc(D.updatedBy) + '）' : '') : '最終保存: まだありません';
+  var last = D && D.updatedAt ? '最終保存: ' + jst(D.updatedAt) + (D.updatedBy ? '（' + esc(D.updatedBy) + '）' : '') : '最終保存: まだありません（いま動いている設定を表示しています）';
   h += '<div class="last">' + last + '</div>';
-  SITES.forEach(function(s){ h += siteCard(s[0], s[1]); });
+  h += '<div class="tabs">' + SITES.map(function(s){
+    return '<button class="' + (TAB === s[0] ? 'on' : '') + '" data-act="tab" data-v="' + s[0] + '">' + s[1] + '</button>';
+  }).join('') + '</div>';
+  var tabName = siteName(TAB);
+  h += siteCard(TAB, tabName);
   h += '<div class="card"><button class="primary" data-act="save">保存する</button>';
   h += '<div class="note">保存しても、表示が変わるのは次の巡回のあとです。</div></div>';
   h += '<div class="card"><button class="sm" data-act="logout">この端末の合言葉を消す</button></div>';
@@ -206,7 +215,9 @@ document.getElementById('app').onclick = function(e){
   var t = e.target.closest ? e.target.closest('[data-act]') : null;
   if (!t || t.disabled) return;
   var a = t.getAttribute('data-act'), s = t.getAttribute('data-s'), v = t.getAttribute('data-v');
-  if (a === 'fac') {
+  if (a === 'tab') {
+    TAB = v;
+  } else if (a === 'fac') {
     var list = C[s].facilities, i = list.indexOf(v);
     if (i >= 0) list.splice(i, 1); else list.push(v);
   } else if (a === 'wd') {
