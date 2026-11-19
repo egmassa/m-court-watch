@@ -30,7 +30,7 @@ jobs:
       GAS_URL: ${{ secrets.GAS_URL }}                 # 並行書き込み先(ステージ2)
       GAS_WRITE_TOKEN: ${{ secrets.GAS_WRITE_TOKEN }} # 書き込みの鍵(ステージ2)
       RESET: ${{ inputs.reset }}
-      SHARED_COND_FILE: ${{ runner.temp }}/shared-conditions.json  # 友達が決めた条件(GASから取る。一時ファイルでコミットしない)
+      SHARED_COND_FILE: /tmp/shared-conditions.json  # 友達が決めた条件(GASから取る。リポジトリの外に置くのでコミットされない)
     steps:
       - uses: actions/checkout@v5
 
