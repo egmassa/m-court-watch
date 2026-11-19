@@ -19,6 +19,35 @@ const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
 
 const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8')) || {};
+// 友達が決めた共有の条件(fetch-conditions.js が GAS から取ったもの)があれば、それで上書きする。
+// 無い・読めない場合は config.yml のまま。施設の場所(room_id など)は config.yml の値を使う。
+(function applyShared() {
+  const f = process.env.SHARED_COND_FILE;
+  if (!f || !fs.existsSync(f)) return;
+  try {
+    const sh = JSON.parse(fs.readFileSync(f, 'utf8'));
+    for (const id of ['mitaka', 'toei', 'fuchu']) {
+      const s = sh[id], base = cfg[id];
+      if (!s || !base) continue;
+      const byName = new Map((base.facilities || []).map(x => [x.name, x]));
+      const wanted = s.facilities || [];
+      const missing = wanted.filter(n => !byName.has(n));
+      if (missing.length) console.log(`${id}: config.yml に無い施設は無視します: ${missing.join('・')}`);
+      Object.assign(base, {
+        enabled: s.enabled,
+        weekdays: s.weekdays,
+        exclude_holidays: s.exclude_holidays,
+        time_from: s.time_from,
+        days_ahead: s.days_ahead,
+        date_from: s.date_from,
+        facilities: wanted.map(n => byName.get(n)).filter(Boolean),
+      });
+    }
+    console.log('共有の条件で動きます');
+  } catch (e) {
+    console.log('共有の条件を読めなかったので config.yml で動きます: ' + e.message);
+  }
+})();
 // LINEに日時を並べる上限(これを超えたら件数の要約だけ送る)
 const LINE_MAX = Number(cfg.line_max_items || 10);
 // 取られた枠を設定ページに取り消し線で残す時間
