@@ -675,6 +675,8 @@ async function mirrorToGas(extra = {}) {
     // このサイトは監視オフ → 残っている記録を消して終わり
     log(`${ONLY || '全サイト'}: 監視オフ`);
     if (prev.keys.length || prev.slots.length || prev.gone.length) writeState({ keys: [], slots: [], gone: [], line: prevAll.line || null });
+    // 監視オフでも、設定画面に出す条件と施設の一覧は GAS に送る(送らないと一覧が古いままになる)
+    await mirrorToGas({ conditions, catalog });
     return;
   }
 
