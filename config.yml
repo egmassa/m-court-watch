@@ -1,5 +1,5 @@
 # テニスコート 空き監視の設定
-# 設定ページ(index.html)から変更できます。ここを直接書き換えてもOKです。
+# 設定ページ(index.html)から保存されました。ここを直接書き換えてもOKです。
 
 # ===== 三鷹市 =====
 mitaka:
@@ -17,33 +17,39 @@ mitaka:
       room_id: 37
       exclude_courts: [4]   # クレー4面のうち4番は監視しない
   weekdays: [月, 火, 水, 木, 金, 土, 日]   # 監視する曜日
-  exclude_holidays: true                   # 祝日を除くか
-  time_from: "18:00"                       # この時刻以降に始まる枠だけ
-  days_ahead: 30                           # 今日から何日先まで
-  date_from: ""                            # この日より前は無視(不要なら空欄)
+  exclude_holidays: false   # 祝日を除くか
+  time_from: "18:00"   # この時刻以降に始まる枠だけ
+  days_ahead: 30   # 今日から何日先まで
+  date_from: ""   # この日より前は無視(不要なら空欄)
 
 # ===== 都立公園 =====
 toei:
-  enabled: true
+  enabled: false
   # bld / inst はコートチェッカーと同じ施設コード
   facilities:
-    - name: "祖師谷公園"
-      bld: "1070"
-      inst: "10700010"
-    - name: "高井戸公園"
-      bld: "1180"
-      inst: "11800030"
     - name: "小金井公園"
       bld: "1240"
       inst: "12400020"
     - name: "野川公園"
       bld: "1260"
       inst: "12600010"
-    - name: "府中の森公園"
-      bld: "1270"
-      inst: "12700020"
-  weekdays: [土, 日]
-  exclude_holidays: false
-  time_from: "09:00"
-  days_ahead: 30
-  date_from: ""
+  weekdays: [土, 日]   # 監視する曜日
+  exclude_holidays: false   # 祝日を除くか
+  time_from: "09:00"   # この時刻以降に始まる枠だけ
+  days_ahead: 30   # 今日から何日先まで
+  date_from: ""   # この日より前は無視(不要なら空欄)
+
+# ===== 府中市 =====
+fuchu:
+  enabled: true
+  # 施設名は予約サイトの表記どおり
+  facilities:
+    - name: "小柳庭球場（Ａ～Ｄ）"
+    - name: "若松庭球場"
+    - name: "紅葉丘庭球場"
+    - name: "紅葉丘第２庭球場"
+  weekdays: [月, 火, 水, 木, 金, 土, 日]   # 監視する曜日
+  exclude_holidays: false   # 祝日を除くか
+  time_from: "09:00"   # この時刻以降に始まる枠だけ
+  days_ahead: 30   # 今日から何日先まで
+  date_from: ""   # この日より前は無視(不要なら空欄)

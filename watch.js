@@ -31,8 +31,10 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
       if (!s || !base) continue;
       const byName = new Map((base.facilities || []).map(x => [x.name, x]));
       const wanted = s.facilities || [];
+      // 府中は施設名で探すので、config.yml に無い名前もそのまま使う。三鷹・都立は場所の番号が要るので config.yml のものだけ
       const missing = wanted.filter(n => !byName.has(n));
-      if (missing.length) console.log(`${id}: config.yml に無い施設は無視します: ${missing.join('・')}`);
+      if (missing.length && id !== 'fuchu') console.log(`${id}: config.yml に無い施設は無視します: ${missing.join('・')}`);
+      const pick = n => byName.get(n) || (id === 'fuchu' ? { name: n } : null);
       Object.assign(base, {
         enabled: s.enabled,
         weekdays: s.weekdays,
@@ -40,7 +42,7 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
         time_from: s.time_from,
         days_ahead: s.days_ahead,
         date_from: s.date_from,
-        facilities: wanted.map(n => byName.get(n)).filter(Boolean),
+        facilities: wanted.map(pick).filter(Boolean),
       });
     }
     console.log('共有の条件で動きます');
