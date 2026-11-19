@@ -659,6 +659,8 @@ async function mirrorToGas(extra = {}) {
     updated: new Date().toISOString(),
     facilities: watchList,
     conditions,
+    // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
+    catalog: ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) })),
     keys: [...others.keys, ...st.keys].sort(),
     slots: [...others.slots, ...st.slots].sort((a, b) => (a.date + a.time + a.facility + a.court).localeCompare(b.date + b.time + b.facility + b.court)),
     gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
