@@ -1,0 +1,263 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>監視の条件</title>
+<style>
+:root{--bg:#f6f7f5;--fg:#1d2a22;--sub:#66756b;--card:#fff;--line:#d9dfd9;--accent:#1f6f43;--on:#fff;--chip:#eef2ee;--err:#b3261e;--ok:#1f6f43;--warn:#8a5a00}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121512;--fg:#e6ece7;--sub:#9aa89e;--card:#1b201c;--line:#2f3a31;--accent:#5cc28a;--on:#0c1f14;--chip:#222a23;--err:#ff8a80;--ok:#5cc28a;--warn:#f0c060}}
+:root[data-theme="dark"]{--bg:#121512;--fg:#e6ece7;--sub:#9aa89e;--card:#1b201c;--line:#2f3a31;--accent:#5cc28a;--on:#0c1f14;--chip:#222a23;--err:#ff8a80;--ok:#5cc28a;--warn:#f0c060}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.6;padding:14px 12px 48px}
+.wrap{max-width:640px;margin:0 auto}
+h1{font-size:18px;margin:4px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+.card h2{font-size:16px;margin:0 0 6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lbl{font-size:12px;color:var(--sub);margin:10px 0 4px}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+button,select,input[type=password],input[type=text]{font:inherit;font-size:15px;padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:var(--chip);color:var(--fg);min-height:36px}
+button{cursor:pointer}
+button.on{background:var(--accent);color:var(--on);border-color:var(--accent);font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--on);border-color:var(--accent);font-weight:700;width:100%;padding:12px}
+button.sm{font-size:12px;padding:3px 9px;min-height:26px;color:var(--sub)}
+select{width:100%}
+.cap{font-size:12px;color:var(--sub)}
+.cap.full{color:var(--warn)}
+.msg{margin-top:10px;font-size:14px;min-height:20px}
+.msg.err{color:var(--err)}
+.msg.ok{color:var(--ok)}
+.note{font-size:12px;color:var(--sub);margin-top:6px}
+.toggle{display:flex;align-items:center;gap:6px;font-size:14px}
+.hidden{display:none}
+.last{font-size:12px;color:var(--sub);margin-top:8px}
+</style></head><body>
+<div class="wrap">
+  <h1>監視の条件を変える</h1>
+
+  <div id="login" class="card">
+    <div class="lbl">編集用の合言葉</div>
+    <div class="row">
+      <input id="pw" type="text" placeholder="合言葉" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1;min-width:0">
+      <button id="openBtn">開く</button>
+    </div>
+    <div class="msg err" id="loginErr"></div>
+  </div>
+
+  <div id="app" class="hidden"></div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
+var KEY = 'courtset_key';
+var WD = ['月','火','水','木','金','土','日'];
+var SITES = [['mitaka','三鷹'],['toei','都立公園'],['fuchu','府中']];
+var CAP = { toei: 2, fuchu: 6 }; // 施設の上限(全員の合計)
+var PERIODS = [['d14','今日から14日'],['d30','今日から30日'],['next','来月'],['this','今月']];
+var TIMES = [['00:00','指定なし'],['09:00','9時以降'],['15:00','15時以降'],['16:00','16時以降'],['17:00','17時以降'],['18:00','18時以降'],['19:00','19時以降']];
+
+var C = null, D = null, BASE = null, SLOTS = [], CATALOG = {}, HOL = {}, HASH = null;
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function pad(n){ return String(n).padStart(2, '0'); }
+function today(){ return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+function addDays(t, n){ return new Date(Date.parse(t + 'T00:00:00Z') + n * 86400e3).toISOString().slice(0, 10); }
+function lastDay(y, m){ return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
+function jst(iso){ try { return new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return String(iso); } }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function sha256(t){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function(d){
+    return Array.prototype.map.call(new Uint8Array(d), function(b){ return b.toString(16).padStart(2, '0'); }).join('');
+  });
+}
+function post(body){
+  // text/plain にすると、ブラウザが事前の確認(CORS)をしないで済む
+  return fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' })
+    .then(function(r){ return r.json(); });
+}
+function msg(text, kind){ var el = document.getElementById('msg'); el.textContent = text || ''; el.className = 'msg ' + (kind || ''); }
+
+// ---- 初期化 ----
+(function(){
+  try { var saved = localStorage.getItem(KEY); if (saved) openSettings(saved, false); } catch (e) {}
+  fetch('https://holidays-jp.github.io/api/v1/date.json').then(function(r){ return r.json(); })
+    .then(function(j){ HOL = j || {}; if (C) render(); }).catch(function(){});
+})();
+document.getElementById('openBtn').onclick = function(){
+  var pw = document.getElementById('pw').value;
+  sha256(pw).then(function(h){ openSettings(h, true); });
+};
+document.getElementById('pw').onkeydown = function(e){ if (e.key === 'Enter') document.getElementById('openBtn').click(); };
+
+function defSite(){ return { enabled: false, facilities: [], weekdays: WD.slice(), exclude_holidays: false, time_from: '00:00', period: { mode: 'days', days: 14 } }; }
+function fromData(d){
+  var c = {};
+  SITES.forEach(function(s){ c[s[0]] = Object.assign(defSite(), d && d[s[0]] ? clone(d[s[0]]) : {}); });
+  return c;
+}
+
+function openSettings(h, remember){
+  post({ action: 'viewConditions', hash: h }).then(function(r){
+    if (!r.ok) {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      document.getElementById('loginErr').textContent = r.error;
+      document.getElementById('login').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+      return;
+    }
+    if (remember) { try { localStorage.setItem(KEY, h); } catch (e) {} }
+    HASH = h;
+    D = r.data; BASE = (r.data && r.data.updatedAt) || null;
+    SLOTS = r.slots || [];
+    CATALOG = {};
+    (r.catalog || []).forEach(function(x){ CATALOG[x.site] = x.names || []; });
+    C = fromData(D);
+    document.getElementById('loginErr').textContent = '';
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    render();
+  }).catch(function(e){ document.getElementById('loginErr').textContent = '通信エラー: ' + e; });
+}
+
+// ---- 期間 ----
+function pKey(p){ return p.mode === 'days' ? 'd' + p.days : p.which; }
+function pFrom(k){ return k.charAt(0) === 'd' ? { mode: 'days', days: Number(k.slice(1)) } : { mode: 'month', which: k }; }
+function range(p){
+  var t = today();
+  if (p.mode === 'days') return [t, addDays(t, p.days)];
+  var y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7));
+  if (p.which === 'next') { var ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1; return [ny + '-' + pad(nm) + '-01', lastDay(ny, nm)]; }
+  return [t, lastDay(y, m)];
+}
+
+// ---- 今の空きが、設定の変更で表示から消えるかを数える ----
+function matches(id, c, x){
+  if (x.site !== id || !c.enabled) return false;
+  if (c.facilities.indexOf(x.facility) < 0) return false;
+  var r = range(c.period);
+  if (x.date < r[0] || x.date > r[1]) return false;
+  var wdIdx = (new Date(x.date + 'T00:00:00Z').getUTCDay() + 6) % 7;
+  if (c.weekdays.indexOf(WD[wdIdx]) < 0) return false;
+  if (c.exclude_holidays && HOL[x.date]) return false;
+  if (String(x.time).split('-')[0] < c.time_from) return false;
+  return true;
+}
+function removedCount(id, oldC, newC){
+  var n = 0;
+  SLOTS.forEach(function(x){ if (matches(id, oldC, x) && !matches(id, newC, x)) n++; });
+  return n;
+}
+
+// ---- 画面 ----
+function render(){
+  var h = '';
+  var last = D && D.updatedAt ? '最終保存: ' + jst(D.updatedAt) + (D.updatedBy ? '（' + esc(D.updatedBy) + '）' : '') : '最終保存: まだありません';
+  h += '<div class="last">' + last + '</div>';
+  SITES.forEach(function(s){ h += siteCard(s[0], s[1]); });
+  h += '<div class="card"><button class="primary" data-act="save">保存する</button>';
+  h += '<div class="note">保存しても、表示が変わるのは次の巡回のあとです。</div></div>';
+  h += '<div class="card"><button class="sm" data-act="logout">この端末の合言葉を消す</button></div>';
+  document.getElementById('app').innerHTML = h;
+}
+
+function siteCard(id, name){
+  var c = C[id];
+  var names = CATALOG[id] || [];
+  var h = '<div class="card"><h2><span>' + esc(name) + '</span>';
+  h += '<label class="toggle"><input type="checkbox" data-act="enable" data-s="' + id + '"' + (c.enabled ? ' checked' : '') + '> 監視する</label></h2>';
+
+  h += '<div class="lbl">施設';
+  if (CAP[id]) h += '（上限 ' + CAP[id] + ' 施設・全員の合計）';
+  h += '</div>';
+  if (!names.length) {
+    h += '<div class="note">施設の一覧は、次の巡回のあとに出ます。</div>';
+  } else {
+    var full = CAP[id] && c.facilities.length >= CAP[id];
+    h += '<div class="row">' + names.map(function(n){
+      var on = c.facilities.indexOf(n) >= 0;
+      var dis = !on && full;
+      return '<button class="' + (on ? 'on' : '') + '" data-act="fac" data-s="' + id + '" data-v="' + esc(n) + '"' + (dis ? ' disabled' : '') + '>' + esc(n) + '</button>';
+    }).join('') + '</div>';
+    if (CAP[id]) {
+      h += '<div class="cap' + (full ? ' full' : '') + '">残り ' + (CAP[id] - c.facilities.length) + ' 施設' + (full ? '（いま選んでいる施設を外すと、選べます）' : '') + '</div>';
+    }
+  }
+
+  h += '<div class="lbl">曜日</div><div class="row">' + WD.map(function(w){
+    return '<button class="' + (c.weekdays.indexOf(w) >= 0 ? 'on' : '') + '" data-act="wd" data-s="' + id + '" data-v="' + w + '">' + w + '</button>';
+  }).join('') + '</div>';
+
+  h += '<div class="toggle" style="margin-top:8px"><label><input type="checkbox" data-act="hol" data-s="' + id + '"' + (c.exclude_holidays ? ' checked' : '') + '> 祝日は除く</label></div>';
+
+  h += '<div class="lbl">開始時刻</div><select data-act="time" data-s="' + id + '">' + TIMES.map(function(t){
+    return '<option value="' + t[0] + '"' + (c.time_from === t[0] ? ' selected' : '') + '>' + t[1] + '</option>';
+  }).join('') + '</select>';
+
+  h += '<div class="lbl">期間</div><select data-act="period" data-s="' + id + '">' + PERIODS.map(function(p){
+    return '<option value="' + p[0] + '"' + (pKey(c.period) === p[0] ? ' selected' : '') + '>' + p[1] + '</option>';
+  }).join('') + '</select>';
+
+  h += '</div>';
+  return h;
+}
+
+// ---- 操作(ボタンは一か所でまとめて受ける) ----
+document.getElementById('app').onclick = function(e){
+  var t = e.target.closest ? e.target.closest('[data-act]') : null;
+  if (!t || t.disabled) return;
+  var a = t.getAttribute('data-act'), s = t.getAttribute('data-s'), v = t.getAttribute('data-v');
+  if (a === 'fac') {
+    var list = C[s].facilities, i = list.indexOf(v);
+    if (i >= 0) list.splice(i, 1); else list.push(v);
+  } else if (a === 'wd') {
+    var w = C[s].weekdays, j = w.indexOf(v);
+    if (j >= 0) w.splice(j, 1); else w.push(v);
+  } else if (a === 'logout') {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    location.reload(); return;
+  } else if (a === 'save') {
+    save(); return;
+  } else {
+    return; // select / checkbox は change で扱う
+  }
+  msg('');
+  render();
+};
+document.getElementById('app').onchange = function(e){
+  var t = e.target, a = t.getAttribute('data-act'), s = t.getAttribute('data-s');
+  if (!a || !s) return;
+  if (a === 'enable') C[s].enabled = t.checked;
+  else if (a === 'hol') C[s].exclude_holidays = t.checked;
+  else if (a === 'time') C[s].time_from = t.value;
+  else if (a === 'period') C[s].period = pFrom(t.value);
+  msg('');
+  render();
+};
+
+// ---- 保存 ----
+function save(){
+  // 上限(保存の前に、画面でも確かめる)
+  for (var id in CAP) {
+    if (C[id].facilities.length > CAP[id]) { msg(siteName(id) + 'は施設を' + CAP[id] + 'つまでです', 'err'); return; }
+  }
+  var removed = 0;
+  SITES.forEach(function(s){ removed += removedCount(s[0], fromData(D)[s[0]], C[s[0]]); });
+  if (removed > 0) {
+    var ok = confirm('今の空き' + removed + '枠が、表示から消えます。\n（表示が変わるのは次の巡回のあとです）\n\n保存しますか？');
+    if (!ok) return;
+  }
+  var data = {};
+  SITES.forEach(function(s){
+    var c = C[s[0]];
+    data[s[0]] = { enabled: !!c.enabled, facilities: c.facilities.slice(), weekdays: c.weekdays.slice(), exclude_holidays: !!c.exclude_holidays, time_from: c.time_from, period: c.period };
+  });
+  msg('保存しています…');
+  post({ action: 'saveConditions', hash: HASH, data: data, baseUpdatedAt: BASE }).then(function(r){
+    if (!r.ok) { msg(r.error, 'err'); return; }
+    msg('保存しました。次の巡回から反映されます', 'ok');
+    openSettings(HASH, false); // 保存した内容を読み直す
+  }).catch(function(e){ msg('通信エラー: ' + e, 'err'); });
+}
+function siteName(id){ for (var i = 0; i < SITES.length; i++) if (SITES[i][0] === id) return SITES[i][1]; return id; }
+</script>
+</body></html>
