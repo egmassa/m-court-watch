@@ -30,6 +30,7 @@ jobs:
       GAS_URL: ${{ secrets.GAS_URL }}                 # 並行書き込み先(ステージ2)
       GAS_WRITE_TOKEN: ${{ secrets.GAS_WRITE_TOKEN }} # 書き込みの鍵(ステージ2)
       RESET: ${{ inputs.reset }}
+      SHARED_COND_FILE: ${{ runner.temp }}/shared-conditions.json  # 友達が決めた条件(GASから取る。一時ファイルでコミットしない)
     steps:
       - uses: actions/checkout@v5
 
@@ -54,6 +55,10 @@ jobs:
           exit 1
           SH
 
+      # 友達が決めた条件を GAS から取る(失敗しても止めない。その場合は config.yml で動く)
+      - name: 条件を取る
+        run: node fetch-conditions.js
+
       # 三鷹は数十秒で終わるので先に通知・保存まで済ませる
       - name: 三鷹をチェック
         run: node watch.js mitaka
@@ -66,7 +71,7 @@ jobs:
       - name: 府中の準備
         if: always()
         run: |
-          if node -e "const y=require('js-yaml').load(require('fs').readFileSync('config.yml','utf8'));process.exit(y.fuchu&&y.fuchu.enabled!==false?0:1)"; then
+          if node fuchu-on.js; then
             npx playwright install --with-deps chromium
           else
             echo "府中の監視はオフ"
