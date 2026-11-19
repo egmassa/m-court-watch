@@ -655,12 +655,13 @@ async function mirrorToGas(extra = {}) {
       facilities: (sec.facilities || []).filter(f => f.name && f.enabled !== false).map(f => f.name),
     };
   });
+  // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
+  const catalog = ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) }));
   const writeState = st => fs.writeFileSync(STATE_FILE, JSON.stringify({
     updated: new Date().toISOString(),
     facilities: watchList,
     conditions,
-    // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
-    catalog: ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) })),
+    catalog,
     keys: [...others.keys, ...st.keys].sort(),
     slots: [...others.slots, ...st.slots].sort((a, b) => (a.date + a.time + a.facility + a.court).localeCompare(b.date + b.time + b.facility + b.court)),
     gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
@@ -792,5 +793,5 @@ async function mirrorToGas(extra = {}) {
     JSON.stringify(gone) === JSON.stringify(prev.gone || []);
   if (same && !reset) log('空き状況に変化なし(保存なし)');
   else writeState({ keys, slots, gone, line, releases });
-  await mirrorToGas({ runOpenAt: fresh.length ? runAt : null }); // 変化がない回も、最新の state.json を GAS に送る。今回の巡回で新しく見つかったときだけ runOpenAt を付ける
+  await mirrorToGas({ runOpenAt: fresh.length ? runAt : null, conditions, catalog }); // 変化がない回も、最新の state.json を GAS に送る。今回の巡回で新しく見つかったときだけ runOpenAt を付ける
 })();

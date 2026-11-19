@@ -34,6 +34,8 @@ select{width:100%}
 .tabs button{flex:1;border:0;border-radius:0;background:var(--card);color:var(--fg);min-height:40px}
 .tabs button+button{border-left:1px solid var(--line)}
 .tabs button.on{background:var(--accent);color:var(--on);font-weight:700}
+.tabs .off{font-size:11px;color:var(--sub);font-weight:400;margin-left:4px}
+.tabs button.on .off{color:var(--on)}
 </style></head><body>
 <div class="wrap">
   <h1>監視の条件を変える</h1>
@@ -159,7 +161,8 @@ function render(){
   var last = D && D.updatedAt ? '最終保存: ' + jst(D.updatedAt) + (D.updatedBy ? '（' + esc(D.updatedBy) + '）' : '') : '最終保存: まだありません（いま動いている設定を表示しています）';
   h += '<div class="last">' + last + '</div>';
   h += '<div class="tabs">' + SITES.map(function(s){
-    return '<button class="' + (TAB === s[0] ? 'on' : '') + '" data-act="tab" data-v="' + s[0] + '">' + s[1] + '</button>';
+    var off = !(C && C[s[0]] && C[s[0]].enabled);
+    return '<button class="' + (TAB === s[0] ? 'on' : '') + '" data-act="tab" data-v="' + s[0] + '">' + s[1] + (off ? '<span class="off">（非監視）</span>' : '') + '</button>';
   }).join('') + '</div>';
   var tabName = siteName(TAB);
   h += siteCard(TAB, tabName);
