@@ -7,14 +7,14 @@
 <title>オーナー操作</title>
 <style>
 :root{
-  --bg:#f4f6f3; --card:#fff; --ink:#1d2420; --sub:#5d6a62; --line:#dde3dd;
-  --accent:#1f6f43; --accent-soft:#e3f1e8; --warn:#9a5b00; --warn-soft:#fff3d6;
+  --bg:#eef3f9; --card:#fff; --ink:#1d2420; --sub:#5d6a62; --line:#d3dde9;
+  --accent:#2f6aa3; --accent-soft:#e1ebf7; --warn:#9a5b00; --warn-soft:#fff3d6;
   --err:#b3261e; --chip:#eef1ee; --on-accent:#fff;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#121614; --card:#1b201d; --ink:#e7ece8; --sub:#9aa79f; --line:#2c342f;
-    --accent:#5cc28a; --accent-soft:#1e3328; --warn:#f0b24a; --warn-soft:#3a2e17;
+    --bg:#11151c; --card:#1a2029; --ink:#e7ece8; --sub:#9aa79f; --line:#2c3644;
+    --accent:#7fb0e6; --accent-soft:#1d2c40; --warn:#f0b24a; --warn-soft:#3a2e17;
     --err:#ff8a80; --chip:#252b27; --on-accent:#0c1f14;
   }
 }
@@ -150,9 +150,10 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
 </head>
 <body>
 <div class="wrap">
+  <div style="background:#2f6aa3;color:#fff;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;margin-bottom:10px">オーナー専用の画面</div>
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>オーナー操作 <span class="ver">Ver 3.2</span></h1>
+    <h1>オーナー操作 <span class="ver">Ver 3.3</span></h1>
   </header>
 
   <section class="card">
@@ -197,6 +198,25 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     </details>
   </section>
 
+  <section class="card" style="text-align:center">
+    <a href="../view/">空き一覧を見る</a> ／ <a href="../settings/">監視の条件を変える</a>
+  </section>
+  <details class="card">
+    <summary>場所の案内</summary>
+    <div class="note" style="margin-top:8px;line-height:1.8">
+      <b>画面のURL</b><br>
+      空き一覧：…/m-court-watch/view/<br>
+      監視の条件：…/m-court-watch/settings/<br>
+      オーナー操作：…/m-court-watch/owner/<br><br>
+      <b>GAS（Google Apps Script）</b><br>
+      設定 →「スクリプト プロパティ」に次の名前があります。VIEW_HASHES（閲覧の合言葉）、EDIT_HASHES（友達の編集用）、OWNER_HASH（オーナーの合言葉。上限を変える用）、WRITE_TOKEN（巡回の鍵）、FILE_ID（状態ファイル）、COND_FILE_ID（条件ファイル。消すと config.yml の値に戻ります）。合言葉は、ハッシュだけを入れます。<br><br>
+      <b>GitHub の Secrets</b>（リポジトリの Settings → Secrets and variables → Actions）<br>
+      GAS_URL、GAS_WRITE_TOKEN、LINE_TOKEN、LINE_USER_ID<br><br>
+      <b>アクセストークン</b><br>
+      アカウントの Settings → Developer settings → Fine-grained tokens。値は作ったときしか見られません。<br><br>
+      <b>GASの定期巡回</b>：別のGASプロジェクトです。消さないでください。
+    </div>
+  </details>
   <p class="muted" style="text-align:center">巡回: 日本時間 6時〜24時の30分おき</p>
 </div>
 
