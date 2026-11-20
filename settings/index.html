@@ -51,6 +51,7 @@ select{width:100%}
 
   <div id="app" class="hidden"></div>
   <div class="msg" id="msg"></div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.1</div>
 </div>
 
 <script>
@@ -61,7 +62,8 @@ var SITES = [['mitaka','三鷹'],['fuchu','府中'],['toei','都立公園']];
 var TAB = 'mitaka';
 // 府中の施設(オーナー画面と同じ 15 施設。府中は名前で探すので、名前がそのまま使われる)
 var FUCHU_LIST = ['郷土の森庭球場','寿町庭球場','武蔵台庭球場','小柳庭球場（Ａ～Ｄ）','小柳庭球場E','押立庭球場','四谷庭球場','栄町庭球場','住吉庭球場','若松庭球場','西府庭球場','日新第２庭球場','紅葉丘庭球場','紅葉丘第２庭球場','平和の森庭球場'];
-var CAP = { toei: 2, fuchu: 6 }; // 施設の上限(全員の合計)
+var CAP = { toei: 2, fuchu: 6 }; // 施設の上限(全員の合計。サーバーの値で上書きする)
+var OWNER = false; // オーナーの合言葉のときだけ上限を変えられる
 var PERIODS = [['d14','今日から14日'],['d30','今日から30日'],['next','来月'],['this','今月']];
 var TIMES = [['00:00','指定なし'],['09:00','9時以降'],['15:00','15時以降'],['16:00','16時以降'],['17:00','17時以降'],['18:00','18時以降'],['19:00','19時以降']];
 
@@ -117,6 +119,9 @@ function openSettings(h, remember){
     if (remember) { try { localStorage.setItem(KEY, h); } catch (e) {} }
     HASH = h;
     D = r.data; BASE = (r.data && r.data.updatedAt) || null;
+    var L = r.limits || { toei_max: 2, fuchu_max: 6 };
+    CAP = { toei: L.toei_max, fuchu: L.fuchu_max };
+    OWNER = !!r.owner;
     SLOTS = r.slots || [];
     CATALOG = {};
     (r.catalog || []).forEach(function(x){ CATALOG[x.site] = x.names || []; });
@@ -168,6 +173,12 @@ function render(){
   }).join('') + '</div>';
   var tabName = siteName(TAB);
   h += siteCard(TAB, tabName);
+  if (OWNER) {
+    h += '<div class="card"><div class="note">オーナーだけ変えられる上限（全員共通）。上限を下げるときは、同じ保存で施設も外してください。</div>';
+    h += '都立公園 <input type="number" min="1" max="10" data-act="lim" data-s="toei" value="' + CAP.toei + '" style="width:4em"> 施設まで　';
+    h += '府中 <input type="number" min="1" max="10" data-act="lim" data-s="fuchu" value="' + CAP.fuchu + '" style="width:4em"> 施設まで';
+    h += '</div>';
+  }
   h += '<div class="card"><button class="primary" data-act="save">保存する</button>';
   h += '<div class="note">保存しても、表示が変わるのは次の巡回のあとです。</div></div>';
   h += '<div class="card"><button class="sm" data-act="logout">この端末の合言葉を消す</button></div>';
@@ -246,6 +257,7 @@ document.getElementById('app').onchange = function(e){
   else if (a === 'hol') C[s].exclude_holidays = t.checked;
   else if (a === 'time') C[s].time_from = t.value;
   else if (a === 'period') C[s].period = pFrom(t.value);
+  else if (a === 'lim') CAP[s] = parseInt(t.value, 10);
   msg('');
   render();
 };
@@ -268,7 +280,9 @@ function save(){
     data[s[0]] = { enabled: !!c.enabled, facilities: c.facilities.slice(), weekdays: c.weekdays.slice(), exclude_holidays: !!c.exclude_holidays, time_from: c.time_from, period: c.period };
   });
   msg('保存しています…');
-  post({ action: 'saveConditions', hash: HASH, data: data, baseUpdatedAt: BASE }).then(function(r){
+  var body = { action: 'saveConditions', hash: HASH, data: data, baseUpdatedAt: BASE };
+  if (OWNER) body.limits = { toei_max: CAP.toei, fuchu_max: CAP.fuchu };
+  post(body).then(function(r){
     if (!r.ok) { msg(r.error, 'err'); return; }
     msg('保存しました。次の巡回から反映されます', 'ok');
     openSettings(HASH, false); // 保存した内容を読み直す

@@ -1,3 +1,4 @@
+// Ver 3.1(共有の条件・施設一覧・府中の名前取り込み)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -35,6 +36,9 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
       const missing = wanted.filter(n => !byName.has(n));
       if (missing.length && id !== 'fuchu') console.log(`${id}: config.yml に無い施設は無視します: ${missing.join('・')}`);
       const pick = n => byName.get(n) || (id === 'fuchu' ? { name: n } : null);
+      let facs = wanted.map(pick).filter(Boolean);
+      const maxN = id === 'toei' ? (sh.limits && sh.limits.toei_max) : id === 'fuchu' ? (sh.limits && sh.limits.fuchu_max) : null;
+      if (maxN && facs.length > maxN) { console.log(`${id}: 上限 ${maxN} を超えているので先頭 ${maxN} 件だけ見ます`); facs = facs.slice(0, maxN); }
       Object.assign(base, {
         enabled: s.enabled,
         weekdays: s.weekdays,
@@ -42,7 +46,7 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
         time_from: s.time_from,
         days_ahead: s.days_ahead,
         date_from: s.date_from,
-        facilities: wanted.map(pick).filter(Boolean),
+        facilities: facs,
       });
     }
     console.log('共有の条件で動きます');
@@ -624,6 +628,7 @@ async function mirrorToGas(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
+  console.log('Ver 3.1');
   const prevAll = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
   // 他のサイトの記録はそのまま残し、このサイトの分だけ入れ替える
   const others = {

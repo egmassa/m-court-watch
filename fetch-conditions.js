@@ -1,3 +1,4 @@
+// Ver 3.1
 // 友達が決めた条件を GAS から取り、巡回が読むファイルに書く。
 // 失敗しても巡回は止めない(その場合は config.yml の値で動く)。
 const fs = require('fs');
@@ -36,6 +37,8 @@ function periodOf(p, today) {
     if (!j.ok || !j.data) { console.log('共有の条件: まだ保存がないので config.yml で動きます'); return; }
     const today = jstToday();
     const result = {};
+    const L = j.data.limits || {};
+    result.limits = { toei_max: Number(L.toei_max) || 2, fuchu_max: Number(L.fuchu_max) || 6 };
     for (const id of ['mitaka', 'toei', 'fuchu']) {
       const s = j.data[id];
       if (!s) continue;
