@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f43">
+<title>オーナー操作</title>
+<style>
+:root{
+  --bg:#f4f6f3; --card:#fff; --ink:#1d2420; --sub:#5d6a62; --line:#dde3dd;
+  --accent:#1f6f43; --accent-soft:#e3f1e8; --warn:#9a5b00; --warn-soft:#fff3d6;
+  --err:#b3261e; --chip:#eef1ee; --on-accent:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121614; --card:#1b201d; --ink:#e7ece8; --sub:#9aa79f; --line:#2c342f;
+    --accent:#5cc28a; --accent-soft:#1e3328; --warn:#f0b24a; --warn-soft:#3a2e17;
+    --err:#ff8a80; --chip:#252b27; --on-accent:#0c1f14;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;
+  font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+.wrap{max-width:560px;margin:0 auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+header h1{font-size:19px;margin:0;flex:1}
+.ball{width:26px;height:26px;border-radius:50%;background:#c9e34b;position:relative;flex:none;
+  box-shadow:inset -3px -3px 0 rgba(0,0,0,.08)}
+.ball::before,.ball::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid #fff;
+  clip-path:inset(0 60% 0 0)}
+.ball::after{clip-path:inset(0 0 0 60%)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap}
+.card h2 .meta{margin-left:auto;font-size:12px;font-weight:normal;color:var(--sub)}
+.muted{color:var(--sub);font-size:13px}
+.status{font-size:12px;color:var(--sub);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.statusrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.statusrow button.mini{min-height:28px;padding:2px 10px;font-size:12px;border-radius:999px}
+.ver{font-size:11px;font-weight:normal;color:var(--sub);margin-left:4px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--sub);display:inline-block}
+.dot.ok{background:var(--accent)} .dot.ng{background:var(--err)} .dot.run{background:var(--warn)}
+.day{border-top:1px solid var(--line);padding:9px 0 7px}
+.day:first-of-type{border-top:0;padding-top:2px}
+.day .d{font-weight:600;font-size:14px}
+.day .d.sat{color:#2a62c9} .day .d.sun{color:var(--err)}
+.slot{display:flex;gap:8px;align-items:baseline;font-size:14px;margin-top:3px;flex-wrap:wrap}
+.slot .t{font-variant-numeric:tabular-nums;font-weight:600;color:var(--accent)}
+.slot .f{color:var(--sub);font-size:13px}
+.empty{padding:14px 0 4px;text-align:center;color:var(--sub)}
+.field{margin-bottom:14px}
+.field>label,.field>.lbl{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;pointer-events:none}
+.chip span{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:38px;
+  padding:6px 12px;border-radius:999px;background:var(--chip);border:1px solid var(--line);cursor:pointer;
+  user-select:none;font-size:14px}
+.chip input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.chip input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.chip.sat input:not(:checked)+span{color:#2a62c9} .chip.sun input:not(:checked)+span{color:var(--err)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>.field{flex:1;min-width:130px}
+select,input[type=date],input[type=password],input[type=text]{width:100%;font:inherit;color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-height:42px}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.toggle input{width:20px;height:20px;accent-color:var(--accent)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+button{font:inherit;border-radius:10px;padding:10px 16px;min-height:44px;border:1px solid var(--line);
+  background:var(--chip);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600;flex:1}
+button:disabled{opacity:.5;cursor:default}
+.msg{margin-top:10px;font-size:13px;padding:8px 10px;border-radius:8px;display:none}
+.msg.show{display:block}
+.msg.ok{background:var(--accent-soft);color:var(--accent)}
+.msg.ng{background:#fde8e6;color:var(--err)}
+.msg.warn{background:var(--warn-soft);color:var(--warn)}
+details summary{cursor:pointer;font-weight:600;font-size:15px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"▸ ";color:var(--sub)}
+details[open] summary::before{content:"▾ "}
+details ol{padding-left:20px;margin:8px 0;font-size:13px;color:var(--sub)}
+a{color:var(--accent)}
+/* カレンダー */
+.viewtg{display:flex;gap:4px;margin-left:auto;flex:none}
+.viewtg button{white-space:nowrap}
+#count{white-space:nowrap}
+.viewtg button{min-height:30px;padding:3px 10px;font-size:12px;border-radius:999px}
+.viewtg button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:10px}
+.cal .h{font-size:11px;text-align:center;color:var(--sub);padding-bottom:2px}
+.cal .h.sat{color:#2a62c9}.cal .h.sun{color:var(--err)}
+.cd{all:unset;box-sizing:border-box;min-height:58px;border-radius:8px;padding:3px 3px 4px;background:var(--bg);
+  display:flex;flex-direction:column;gap:2px;cursor:default;border:1px solid transparent;min-width:0}
+.cd .n{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums}
+.cd.sat .n{color:#2a62c9}.cd.sun .n,.cd.hol .n{color:var(--err)}
+.cd.today .n{font-weight:700;color:var(--ink)}
+.cd.out{opacity:.35}
+.cd.off{background:transparent}
+.cd.has{background:var(--accent-soft);cursor:pointer}
+.cd.has:hover{border-color:var(--accent)}
+.cd.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.cd .b{font-size:10px;line-height:1.25;background:var(--accent);color:var(--on-accent);border-radius:4px;padding:1px 3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd .more{font-size:10px;color:var(--accent)}
+.mon{grid-column:1/-1;font-size:12px;font-weight:600;color:var(--sub);padding:6px 2px 0}
+.detail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.detail .d{font-weight:600}
+.legend{font-size:11px;color:var(--sub);margin-top:6px}
+/* 施設ごとの詳細 */
+.fac{margin-top:6px}
+.fh{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.book{margin-left:auto;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--accent);color:var(--accent);
+  border-radius:999px;padding:3px 10px;white-space:nowrap}
+.book:hover{background:var(--accent);color:var(--on-accent)}
+.fac .slot{margin-left:2px}
+.bookhint{font-size:11px;color:var(--sub);margin-top:8px}
+.qhelp{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
+.sitelinks{align-self:center;margin-left:auto;font-size:13px;color:var(--sub);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sitelinks a{font-size:14px}
+/* サイト切替 */
+.sitetabs{display:flex;gap:0;margin:0 0 12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sitetabs button{flex:1;border:0;border-radius:0;min-height:40px;background:var(--card);font-size:14px}
+.sitetabs button+button{border-left:1px solid var(--line)}
+.sitetabs button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+.sitetabs button .off{font-size:11px;opacity:.75;margin-left:4px}
+/* 埋まった枠 */
+.slot.gone .t,.slot.gone .f{text-decoration:line-through;color:var(--sub);font-weight:normal}
+.gtag{font-size:11px;color:var(--err);white-space:nowrap}
+.fnd{font-size:11px;color:var(--sub);white-space:nowrap}
+.cd .b .rn{display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px #333;margin-right:3px;vertical-align:middle}
+.cd .b.nwc{box-shadow:inset 0 0 0 2px #fff;font-weight:700}
+.cd .nw{font-size:9px;line-height:1;font-weight:700;background:#e0a100;color:#fff;border-radius:4px;padding:2px 3px;align-self:flex-start}
+.cd.goneonly{background:var(--chip);cursor:pointer}
+.cd .g{font-size:10px;color:var(--sub)}
+.cd .b.s-toei{background:#2a62c9}.cd .b.s-fuchu{background:#b35c00}
+.sitename{font-size:11px;font-weight:600;color:var(--sub);margin-left:6px}
+/* LINE残り通数 */
+.quota{margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--bg)}
+.qtxt{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
+.qtxt b{font-variant-numeric:tabular-nums}
+.qbar{height:6px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.qbar span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.quota.warn .qbar span{background:var(--warn)} .quota.ng .qbar span{background:var(--err)}
+/* トークン未登録のときのボタン */
+body.notoken .needtok{background:transparent!important;color:var(--sub)!important;border:1px dashed var(--line)!important;font-weight:normal}
+body.notoken .needtok::before{content:"🔒 ";font-size:12px}
+.lock{font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:8px;padding:6px 10px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="ball" aria-hidden="true"></div>
+    <h1>オーナー操作 <span class="ver">Ver 3.2</span></h1>
+  </header>
+
+  <section class="card">
+    <h2>巡回の状態</h2>
+    <div class="statusrow"><div class="status" id="runStatus"><span class="dot"></span><span>読み込み中…</span></div><button id="reload" class="mini" type="button">表示を更新</button></div>
+    <div class="status" id="lineStatus" style="margin-top:2px"></div>
+    <div class="quota" id="quotaBar" hidden>
+      <div class="qtxt"><span id="qLabel"></span><span id="qReach" class="muted"></span></div>
+      <div class="qbar"><span id="qFill"></span></div>
+      <div class="qhelp">無料プランで今月LINEを送れる残りの通数です。全員送信は友だち1人につき1通と数えるので、1回の通知で友だちの人数分減ります。毎月1日に200通に戻ります。</div>
+    </div>
+    <div class="msg" id="lineAlert"></div>
+  </section>
+
+  <section class="card">
+    <h2>操作</h2>
+    <div class="lock" id="lockNote" hidden>ボタンを使うには、下でアクセストークンを登録してください。</div>
+    <div class="btns">
+      <button id="runNow" class="needtok">今すぐチェック</button>
+      <button id="resend" class="needtok">全部LINEで再送</button>
+    </div>
+    <div class="msg" id="runMsg"></div>
+  </section>
+
+  <section class="card">
+    <details id="tokBox">
+      <summary>アクセストークン <span class="muted" id="tokState"></span></summary>
+      <p class="muted" style="margin:10px 0 6px">「今すぐチェック」と「全部LINEで再送」に使います。このブラウザの中にだけ保存されます。</p>
+      <ol>
+        <li>GitHub 右上のアイコン →「Settings」→ 左下「Developer settings」</li>
+        <li>「Personal access tokens」→「Fine-grained tokens」→「Generate new token」</li>
+        <li>Expiration: 1年など / Repository access: <b>Only select repositories</b> → <b id="repoName"></b></li>
+        <li>Permissions → Repository permissions で<br><b>Contents</b> と <b>Actions</b> を「Read and write」</li>
+        <li>「Generate token」→ 表示された <code>github_pat_…</code> をコピーして下に貼り付け</li>
+      </ol>
+      <div class="row" style="gap:6px;flex-wrap:nowrap">
+        <input type="password" id="tok" placeholder="github_pat_..." autocomplete="off">
+        <button id="tokSave" type="button" style="flex:none">登録</button>
+      </div>
+      <div class="btns"><button id="tokDel" type="button">このブラウザから削除</button></div>
+      <div class="msg" id="tokMsg"></div>
+    </details>
+  </section>
+
+  <p class="muted" style="text-align:center">巡回: 日本時間 6時〜24時の30分おき</p>
+</div>
+
+<script>
+(() => {
+  // ---- リポジトリ(GitHub Pagesのアドレスから自動判定。今の画面と同じ) ----
+  const host = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : 'egmassa';
+  const seg = location.pathname.split('/').filter(Boolean)[0];
+  const OWNER = host, REPO = (location.hostname.endsWith('.github.io') && seg) ? seg : 'm-court-watch';
+  const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
+  const WF = 'watch.yml';
+
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
+    set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  // 今の画面と同じキーなので、登録し直さなくてよい
+  const TOKEN_KEY = `courtwatch_token_${OWNER}_${REPO}`;
+  let token = store.get(TOKEN_KEY);
+  let lineInfo = null;
+
+  const msg = (id, text, kind = 'ok') => {
+    const el = $(id); el.textContent = text; el.className = `msg show ${kind}`;
+  };
+  const hideMsg = id => { $(id).className = 'msg'; };
+
+  // ---- GitHub API ----
+  async function gh(path, opt = {}) {
+    const headers = { Accept: 'application/vnd.github+json', ...(opt.headers || {}) };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(API + path, { cache: 'no-store', ...opt, headers });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).message || ''; } catch {}
+      const err = new Error(`${res.status} ${detail}`); err.status = res.status; throw err;
+    }
+    return res.status === 204 ? null : res.json();
+  }
+  const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, '')), c => c.charCodeAt(0)));
+  async function getFile(name) {
+    const r = await gh(`/contents/${encodeURIComponent(name)}?ref=main&t=${Date.now()}`);
+    return { sha: r.sha, text: b64dec(r.content) };
+  }
+
+  // ---- 表示用 ----
+  const hm = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const ago = iso => {
+    const m = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (m < 1) return 'たった今'; if (m < 60) return `${m}分前`;
+    const h = Math.floor(m / 60); if (h < 24) return `${h}時間前`;
+    return `${Math.floor(h / 24)}日前`;
+  };
+
+  // ---- 巡回の状態(GitHub Actions の最新の実行) ----
+  async function loadRun() {
+    try {
+      const r = await gh(`/actions/workflows/${WF}/runs?per_page=1&t=${Date.now()}`);
+      const run = r.workflow_runs && r.workflow_runs[0];
+      if (!run) { $('runStatus').innerHTML = '<span class="dot"></span><span>まだ実行されていません</span>'; return false; }
+      const running = run.status !== 'completed';
+      const ok = run.conclusion === 'success';
+      const cls = running ? 'run' : ok ? 'ok' : 'ng';
+      const label = running ? 'チェック中…' : ok ? '最終チェック' : 'エラーあり';
+      $('runStatus').innerHTML = `<span class="dot ${cls}"></span><span>${label} ${hm(run.run_started_at || run.created_at)}(${ago(run.run_started_at || run.created_at)})</span>` +
+        (!running && !ok ? ` <a href="${run.html_url}" target="_blank" rel="noopener">詳細</a>` : '');
+      return running;
+    } catch (e) {
+      $('runStatus').innerHTML = '<span class="dot"></span><span>実行状況を取得できませんでした</span>';
+      return false;
+    }
+  }
+
+  // ---- LINE の今月の残り(state.json の line) ----
+  function renderLine(l) {
+    if (!l || l.used == null) { $('lineStatus').innerHTML = ''; $('quotaBar').hidden = true; hideMsg('lineAlert'); lineInfo = null; return; }
+    const thisMonth = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
+    if (l.month && l.month !== thisMonth) { l = { ...l, used: 0, error: null }; }
+    const rate = l.limit ? l.used / l.limit : 0;
+    const cls = l.error || rate >= 1 ? 'ng' : rate >= 0.8 ? 'run' : 'ok';
+    lineInfo = l;
+    if (l.limit) {
+      const left = Math.max(0, l.limit - l.used);
+      $('lineStatus').innerHTML = '';
+      $('quotaBar').hidden = false;
+      $('quotaBar').className = 'quota ' + (cls === 'ng' ? 'ng' : cls === 'run' ? 'warn' : '');
+      $('qLabel').innerHTML = `LINE 今月の残り <b>${left}</b> / ${l.limit}通`;
+      $('qReach').textContent = l.reach ? `全員送信1回で約${l.reach}通` : '';
+      $('qFill').style.width = Math.min(100, rate * 100) + '%';
+    } else {
+      $('quotaBar').hidden = true;
+      $('lineStatus').innerHTML = `<span class="dot ${cls}"></span><span>LINE 今月 ${l.used}通(上限なし)</span>`;
+    }
+    if (l.error) msg('lineAlert', '⚠ ' + l.error, 'ng');
+    else if (rate >= 0.8) msg('lineAlert', `LINEの無料枠が残り ${l.limit - l.used}通です。全員送信は1回で人数分を使います。`, 'warn');
+    else hideMsg('lineAlert');
+  }
+  async function loadLine() {
+    try {
+      const { text } = await getFile('state.json');
+      renderLine(JSON.parse(text).line);
+    } catch (e) {
+      $('lineStatus').innerHTML = '';
+      $('quotaBar').hidden = true;
+    }
+  }
+  async function loadAll() { await Promise.all([loadRun(), loadLine()]); }
+
+  // ---- 操作 ----
+  let poll = null, resendArmed = null;
+  $('runNow').onclick = () => runCheck(false);
+  $('resend').onclick = () => {
+    if (!token) { msg('runMsg', '再送にはアクセストークンの登録が必要です', 'warn'); $('tokBox').open = true; return; }
+    if (!resendArmed) {
+      $('resend').textContent = 'もう一度押すと送信';
+      const cost = lineInfo && lineInfo.reach ? `約${lineInfo.reach}通` : '友だちの人数分';
+      const left = lineInfo && lineInfo.limit ? `(今月の残り${Math.max(0, lineInfo.limit - lineInfo.used)}通)` : '';
+      msg('runMsg', `今の空きをすべてLINEに送ります。全員送信なら1回で${cost}使います${left}。`, 'warn');
+      resendArmed = setTimeout(() => { resendArmed = null; $('resend').textContent = '全部LINEで再送'; hideMsg('runMsg'); }, 5000);
+      return;
+    }
+    clearTimeout(resendArmed); resendArmed = null; $('resend').textContent = '全部LINEで再送';
+    runCheck(true);
+  };
+  // 条件の保存はしない(条件は監視の条件画面で保存済みのものを使う)
+  async function runCheck(reset) {
+    hideMsg('runMsg');
+    if (!token) { msg('runMsg', '先にアクセストークンを登録してください', 'warn'); $('tokBox').open = true; return; }
+    $('runNow').disabled = true; $('resend').disabled = true;
+    try {
+      await gh(`/actions/workflows/${WF}/dispatches`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: 'main', inputs: { reset: reset ? 'true' : 'false' } }),
+      });
+      msg('runMsg', reset ? '再送を開始しました。1分ほどで今の空きがすべてLINEに届きます。' : 'チェックを開始しました。1分ほどで結果が反映されます。');
+      let n = 0; clearInterval(poll);
+      poll = setInterval(async () => {
+        n++;
+        const running = await loadRun();
+        if ((!running && n > 2) || n > 12) { clearInterval(poll); await loadLine(); $('runNow').disabled = false; $('resend').disabled = false; hideMsg('runMsg'); }
+      }, 10000);
+    } catch (e) {
+      msg('runMsg', `開始できませんでした(${e.message})。トークンに Actions の Read and write 権限があるか確認してください。`, 'ng');
+      $('runNow').disabled = false; $('resend').disabled = false;
+    }
+  }
+  $('reload').onclick = () => { hideMsg('runMsg'); loadAll(); };
+
+  // ---- トークン ----
+  function tokUi() {
+    $('tokState').textContent = token ? '(登録済み)' : '(未登録)';
+    $('lockNote').hidden = !!token;
+    document.body.classList.toggle('notoken', !token);
+    $('repoName').textContent = `${OWNER}/${REPO}`;
+  }
+  $('tokSave').onclick = async () => {
+    const v = $('tok').value.trim();
+    if (!v) return;
+    const old = token; token = v;
+    try {
+      const r = await gh('');
+      if (!r.permissions || !r.permissions.push) throw new Error('書き込み権限がありません');
+      store.set(TOKEN_KEY, v) || msg('tokMsg', 'このブラウザでは保存できないため、ページを閉じるまで有効です', 'warn');
+      $('tok').value = '';
+      msg('tokMsg', '登録しました');
+      tokUi();
+      setTimeout(() => { $('tokBox').open = false; hideMsg('tokMsg'); }, 1500);
+    } catch (e) {
+      token = old;
+      msg('tokMsg', `このトークンは使えませんでした(${e.message})`, 'ng');
+    }
+  };
+  $('tokDel').onclick = () => { store.del(TOKEN_KEY); token = ''; tokUi(); msg('tokMsg', '削除しました'); };
+
+  tokUi();
+  loadAll();
+})();
+</script>
+</body>
+</html>

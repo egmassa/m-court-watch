@@ -50,8 +50,7 @@ select{width:100%}
   </div>
 
   <div id="app" class="hidden"></div>
-  <div class="msg" id="msg"></div>
-  <div class="last" style="text-align:center;margin-top:16px">Ver 3.1</div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.2</div>
 </div>
 
 <script>
@@ -180,6 +179,7 @@ function render(){
     h += '</div>';
   }
   h += '<div class="card"><button class="primary" data-act="save">保存する</button>';
+  h += '<div class="msg" id="msg"></div>';
   h += '<div class="note">保存しても、表示が変わるのは次の巡回のあとです。</div></div>';
   h += '<div class="card"><button class="sm" data-act="logout">この端末の合言葉を消す</button></div>';
   document.getElementById('app').innerHTML = h;
