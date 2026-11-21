@@ -1,4 +1,4 @@
-// Ver 3.1(共有の条件・施設一覧・府中の名前取り込み)
+// Ver 3.3(共有の条件・施設一覧・府中の名前取り込み)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -628,7 +628,7 @@ async function mirrorToGas(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.1');
+  console.log('Ver 3.3');
   const prevAll = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
   // 他のサイトの記録はそのまま残し、このサイトの分だけ入れ替える
   const others = {
@@ -731,7 +731,9 @@ async function mirrorToGas(extra = {}) {
     // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
     const ext = u => u + (u.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
     const sitesInFresh = RUN.filter(s => fresh.some(h => h.site === s.mod.id)).map(s => s.mod);
+    const viewUrl = pageUrl ? pageUrl.replace(/\/?$/, '/') + 'view/' : '';
     const links = (pageUrl ? `\n\n今の空き一覧\n${pageUrl}?openExternalBrowser=1#n=${encodeURIComponent(runAt)}` : '') +
+      (viewUrl ? `\n\n空き一覧(新・合言葉が必要)\n${viewUrl}?openExternalBrowser=1#n=${encodeURIComponent(runAt)}` : '') +
       sitesInFresh.map(m => `\n\n${m.name}の予約サイト\n${ext(m.bookUrl)}`).join('');
     let text;
     if (fresh.length > LINE_MAX) {
