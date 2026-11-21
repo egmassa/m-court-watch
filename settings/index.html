@@ -50,7 +50,7 @@ select{width:100%}
   </div>
 
   <div id="app" class="hidden"></div>
-  <div class="last" style="text-align:center;margin-top:16px">Ver 3.3</div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.5</div>
 </div>
 
 <script>
@@ -80,7 +80,20 @@ function sha256(t){
     return Array.prototype.map.call(new Uint8Array(d), function(b){ return b.toString(16).padStart(2, '0'); }).join('');
   });
 }
+function devId(){
+  try {
+    var k = 'courtdev_id', v = localStorage.getItem(k);
+    if (v) return v;
+    var a = new Uint8Array(12); crypto.getRandomValues(a);
+    v = Array.prototype.map.call(a, function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+    localStorage.setItem(k, v);
+    return v;
+  } catch (e) { return ''; }
+}
+var ACCESS = [];
+function accLabel(l){ if (l === 'owner') return 'オーナー'; var m = /^(view|edit)(\d+)$/.exec(l); return m ? (m[1] === 'view' ? '閲覧' : '編集') + m[2] : l; }
 function post(body){
+  body.dev = devId();
   // text/plain にすると、ブラウザが事前の確認(CORS)をしないで済む
   return fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' })
     .then(function(r){ return r.json(); });
@@ -121,6 +134,7 @@ function openSettings(h, remember){
     var L = r.limits || { toei_max: 2, fuchu_max: 6 };
     CAP = { toei: L.toei_max, fuchu: L.fuchu_max };
     OWNER = !!r.owner;
+    ACCESS = r.access || [];
     SLOTS = r.slots || [];
     CATALOG = {};
     (r.catalog || []).forEach(function(x){ CATALOG[x.site] = x.names || []; });
@@ -176,6 +190,10 @@ function render(){
     h += '<div class="card"><div class="note">オーナーだけ変えられる上限（全員共通）。上限を下げるときは、同じ保存で施設も外してください。</div>';
     h += '都立公園 <input type="number" min="1" max="10" data-act="lim" data-s="toei" value="' + CAP.toei + '" style="width:4em"> 施設まで　';
     h += '府中 <input type="number" min="1" max="10" data-act="lim" data-s="fuchu" value="' + CAP.fuchu + '" style="width:4em"> 施設まで';
+    h += '<details style="margin-top:10px"><summary>合言葉ごとの使用状況</summary>';
+    if (!ACCESS.length) h += '<div class="note">まだ記録がありません</div>';
+    ACCESS.forEach(function(a){ h += '<div class="note">' + esc(accLabel(a.label)) + '：端末' + a.devices + '台・最後 ' + (a.last ? jst(a.last) : '-') + '</div>'; });
+    h += '<div class="note">端末は、ブラウザごとに作る番号で数えています。スマホとPCは別の端末です。履歴を消したり、プライベートモードで開いたりすると、新しい端末として数えます。閲覧1・編集2などの数字は、合言葉の並び順です。</div></details>';
     h += '</div>';
   }
   h += '<div class="card"><button class="primary" data-act="save">保存する</button>';
