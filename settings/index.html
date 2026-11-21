@@ -50,7 +50,7 @@ select{width:100%}
   </div>
 
   <div id="app" class="hidden"></div>
-  <div class="last" style="text-align:center;margin-top:16px">Ver 3.5</div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.11</div>
 </div>
 
 <script>
@@ -102,7 +102,16 @@ function msg(text, kind){ var el = document.getElementById('msg'); el.textConten
 
 // ---- 初期化 ----
 (function(){
-  try { var saved = localStorage.getItem(KEY); if (saved) openSettings(saved, false); } catch (e) {}
+  // 合言葉を覚えている端末では、入力欄を出さずに「読み込み中」にする(違った・通信できなかったときだけ入力欄を出す)
+  try {
+    var saved = localStorage.getItem(KEY);
+    if (saved) {
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('app').innerHTML = '<div class="note" style="margin-top:12px">読み込み中…</div>';
+      openSettings(saved, false);
+    }
+  } catch (e) {}
   fetch('https://holidays-jp.github.io/api/v1/date.json').then(function(r){ return r.json(); })
     .then(function(j){ HOL = j || {}; if (C) render(); }).catch(function(){});
 })();
@@ -143,7 +152,11 @@ function openSettings(h, remember){
     document.getElementById('login').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     render();
-  }).catch(function(e){ document.getElementById('loginErr').textContent = '通信エラー: ' + e; });
+  }).catch(function(e){
+    document.getElementById('loginErr').textContent = '通信エラー: ' + e;
+    document.getElementById('login').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+  });
 }
 
 // ---- 期間 ----

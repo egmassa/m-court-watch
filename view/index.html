@@ -68,7 +68,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 <div id="err"></div>
 <div id="app"></div>
 <div style="margin:18px 0 8px;padding:12px;border:1px solid #333;border-radius:10px;text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.5</div>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.11</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -83,6 +83,7 @@ function devId(){
 }
 var KEY = 'courtview_key', FKEY = 'courtview_f', MKEY = 'courtview_mode';
 var DATA = null, HOL = {}, selDay = null, MODE = 'cal', NOTIFY = null;
+var NOTIFY_DONE = false, F_BACKUP = null; // 通知から開いたとき、絞り込みを一時的に外したか(元の絞り込みを控えておく)
 var F = { site: 'all', wd: [], tb: [], fac: [] };
 try { var sf = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (sf) F = Object.assign(F, sf); } catch (e) {}
 try { MODE = localStorage.getItem(MKEY) || 'cal'; } catch (e) {}
@@ -152,6 +153,7 @@ function load(h, remember){
       if (!r.ok) {
         try { localStorage.removeItem(KEY); } catch (e) {}
         err.textContent = r.error;
+        document.getElementById('app').innerHTML = '';
         document.getElementById('login').style.display = '';
         return;
       }
@@ -161,14 +163,26 @@ function load(h, remember){
       document.getElementById('login').style.display = 'none';
       render();
     })
-    .catch(function(e){ err.textContent = '通信エラー: ' + e; });
+    .catch(function(e){
+      err.textContent = '通信エラー: ' + e;
+      document.getElementById('app').innerHTML = '';
+      document.getElementById('login').style.display = '';
+    });
 }
 document.getElementById('openBtn').onclick = function(){
   var pw = document.getElementById('pw').value;
   sha256(pw).then(function(h){ load(h, true); });
 };
 document.getElementById('pw').onkeydown = function(e){ if (e.key === 'Enter') document.getElementById('openBtn').click(); };
-try { var saved = localStorage.getItem(KEY); if (saved) load(saved, false); } catch (e) {}
+// 合言葉を覚えている端末では、入力欄を出さずに「読み込み中」にする(合言葉が違った・通信できなかったときだけ入力欄を出す)
+try {
+  var saved = localStorage.getItem(KEY);
+  if (saved) {
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').innerHTML = '<div style="color:var(--sub);padding:12px 0">読み込み中…</div>';
+    load(saved, false);
+  }
+} catch (e) {}
 fetch('https://holidays-jp.github.io/api/v1/date.json').then(function(r){ return r.json(); })
   .then(function(j){ HOL = j || {}; if (DATA) render(); }).catch(function(){});
 
@@ -177,6 +191,7 @@ document.getElementById('app').onclick = function(e){
   var t = e.target.closest ? e.target.closest('[data-act]') : null;
   if (!t) return;
   var a = t.getAttribute('data-act'), v = t.getAttribute('data-v');
+  if (a !== 'restoreF' && a !== 'day' && a !== 'mode' && a !== 'refresh' && a !== 'logout') F_BACKUP = null; // 自分で絞り込みを変えたら、戻すボタンは出さない
   if (a === 'site') {
     // 「すべて」のタブは、絞り込みを全部解除する
     if (v === 'all') { F = { site: 'all', wd: [], tb: [], fac: [] }; saveF(); render(); return; }
@@ -198,6 +213,7 @@ document.getElementById('app').onclick = function(e){
     else F = { site: 'all', wd: [], tb: [], fac: [] };
     saveF();
   }
+  else if (a === 'restoreF') { if (F_BACKUP) { F = F_BACKUP; F_BACKUP = null; } }
   else if (a === 'mode') { MODE = v; saveMode(); }
   else if (a === 'day') { selDay = v; }
   else if (a === 'refresh') {
@@ -210,9 +226,31 @@ document.getElementById('app').onclick = function(e){
   render();
 };
 
+// ---- すでに開いている画面に、通知のリンクが来たとき(最新のデータを取り直して、判定し直す) ----
+window.addEventListener('hashchange', function(){
+  var m = location.hash.match(/(?:^|[#&])n=([^&]+)/);
+  NOTIFY = null;
+  if (m) { try { NOTIFY = decodeURIComponent(m[1]); } catch (e) {} }
+  NOTIFY_DONE = false;
+  if (F_BACKUP) { F = F_BACKUP; F_BACKUP = null; } // 前の一時解除を戻してから判定し直す
+  var sv = null;
+  try { sv = localStorage.getItem(KEY); } catch (e) {}
+  if (sv) load(sv, false); else render();
+});
+
 // ---- 画面 ----
+// 通知のリンクで開いたとき: 通知の空きが絞り込みで隠れるなら、絞り込みを一時的に外す(保存はしない)
+function notifyPrep(){
+  if (!NOTIFY || NOTIFY_DONE || !DATA) return;
+  NOTIFY_DONE = true;
+  var all = 0, shown = 0, days = [];
+  (DATA.slots || []).forEach(function(x){ if (isNotify(x)) { all++; days.push(x.date); if (match(x)) shown++; } });
+  if (all > shown) { F_BACKUP = JSON.parse(JSON.stringify(F)); F = { site: 'all', wd: [], tb: [], fac: [] }; }
+  if (days.length) { days.sort(); selDay = days[0]; }
+}
 function render(){
   if (!DATA) return;
+  notifyPrep();
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var todayS = dstr(today);
   var start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
@@ -268,10 +306,17 @@ function render(){
     '</div>';
 
   // 通知のリンクから開いたとき
-  var nN = 0;
   if (NOTIFY) {
-    (DATA.slots || []).forEach(function(x){ if (isNotify(x) && match(x)) nN++; });
-    h += '<div class="nb show">この通知で届いた空き: ' + nN + '枠(' + esc(hm(NOTIFY)) + 'の回)</div>';
+    var nAll = 0, nShown = 0;
+    (DATA.slots || []).forEach(function(x){ if (isNotify(x)) { nAll++; if (match(x)) nShown++; } });
+    if (!nAll) {
+      h += '<div class="nb show">この通知(' + esc(hm(NOTIFY)) + 'の回)の空きは、見つからないか、すでに埋まっています</div>';
+    } else {
+      h += '<div class="nb show">この通知で届いた空き: ' + nAll + '枠(' + esc(hm(NOTIFY)) + 'の回)';
+      if (F_BACKUP) h += '<br>見つけた空きが見えるように、絞り込みを一時的に外しています <button class="sm" data-act="restoreF">元の絞り込みに戻す</button>';
+      else if (nShown < nAll) h += '<br>絞り込みで ' + (nAll - nShown) + ' 枠が隠れています(「すべて解除」で見えます)';
+      h += '</div>';
+    }
   }
 
   // 絞り込み
