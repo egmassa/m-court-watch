@@ -14,7 +14,15 @@ button.sm{font-size:12px;padding:2px 8px;min-height:24px;margin-left:6px;color:v
 input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#222;color:var(--fg);min-width:0;flex:1}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .box{background:var(--card);border-radius:10px;padding:10px;margin-top:10px}
-.bar{background:var(--card);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.5;position:sticky;top:0;z-index:5;margin-bottom:8px}
+.pn{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden}
+.pnh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 10px;background:#262626;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;color:var(--accent);line-height:1.5}
+.pnh small{font-weight:400;font-size:11px;color:var(--sub);text-align:right}
+.pnh small b{color:var(--fg)}
+.pnb{padding:10px}
+.pn.hot{border-color:var(--accent)}
+.pn.hot .pnh{background:#2c2a10}
+.bar{font-size:13px;line-height:1.5;position:sticky;top:0;z-index:5;margin-top:0;margin-bottom:8px;box-shadow:0 4px 10px rgba(0,0,0,.55)}
+.bar .pnb{padding:8px 10px}
 .bar .row{margin-top:6px}
 .bar .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .bar .top button{min-height:30px;padding:3px 14px;font-size:13px}
@@ -51,9 +59,11 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .cd .g{font-size:10px;color:var(--sub)}
 .rn{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px #0c1f14;margin-right:4px;vertical-align:middle}
 .hol{font-size:11px;color:var(--err);font-weight:400;margin-left:6px}
-.cond{font-size:12px;color:var(--sub);line-height:1.6;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.cond{font-size:12px;color:var(--sub);line-height:1.6;margin-top:8px}
 .cond b{color:var(--fg)}
-.cond summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cond summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--bg)}
+.cond .tap{margin-left:auto;font-size:11px;color:var(--accent)}
+.cond[open] .tap{display:none}
 .cond summary::-webkit-details-marker{display:none}
 .cond summary::before{content:'▸';font-size:11px;color:var(--sub);width:10px}
 .cond[open] summary::before{content:'▾'}
@@ -94,8 +104,8 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 </div>
 <div id="err"></div>
 <div id="app"></div>
-<div style="margin:18px 0 8px;padding:12px;border:1px solid #333;border-radius:10px;text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.16</div>
+<section class="pn" style="margin-top:14px"><div class="pnh"><span>条件の変更</span><small>別の画面に移ります</small></div><div class="pnb" style="text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div></section>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.17</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -167,6 +177,9 @@ function leadDays(f){
 }
 function openFrom(f){ var d = new Date(TODAYS + 'T00:00:00'); d.setDate(d.getDate() + leadDays(f)); return dstr(d); }
 function isUb(x){ return leadDays(x.facility) > 0 && x.date < openFrom(x.facility); }
+function panel(t, hint, body, cls){
+  return '<section class="pn' + (cls ? ' ' + cls : '') + '"><div class="pnh"><span>' + t + '</span>' + (hint ? '<small>' + hint + '</small>' : '') + '</div><div class="pnb">' + body + '</div></section>';
+}
 function cmp(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); }
 function bookLink(x){
   if (x.site === 'mitaka') {
@@ -346,55 +359,56 @@ function render(){
         '</div>';
     });
   }
-  var condBlock = '<details class="cond"' + (COND_OPEN ? ' open' : '') + ' ontoggle="COND_OPEN = this.open"><summary>巡回の条件' + condPills + '</summary>' +
+  var condBlock = '<details class="cond"' + (COND_OPEN ? ' open' : '') + ' ontoggle="COND_OPEN = this.open"><summary>巡回の条件' + condPills + '<span class="tap">タップで開く</span></summary>' +
     '<div class="cb">' + (condHtml || '<div>条件は次の巡回で表示されます</div>') + '<div style="margin-top:6px">最後の巡回で使った条件です</div></div></details>';
 
-  var h = '<div class="bar">' +
+  var h = panel('状態', '画面の上に固定されます',
     '<div class="top"><div>最終チェック <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b></div><button data-act="refresh">更新</button></div>' + ageWarn +
     '<div class="sub">新着 ' + (DATA.runOpenAt ? '<b>' + esc(jst(DATA.runOpenAt)) + '</b>(白い枠)' : 'なし') + ' ・ 空きの変化 <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b></div>' +
-    condBlock +
-    '</div>';
+    condBlock, 'bar');
 
   // 通知のリンクから開いたとき
   if (NOTIFY) {
-    var nAll = 0, nShown = 0;
+    var nAll = 0, nShown = 0, nb = '';
     (DATA.slots || []).forEach(function(x){ if (isNotify(x)) { nAll++; if (match(x)) nShown++; } });
     if (!nAll) {
-      h += '<div class="nb show">この通知(' + esc(hm(NOTIFY)) + 'の回)の空きは、見つからないか、すでに埋まっています</div>';
+      nb = 'この通知(' + esc(hm(NOTIFY)) + 'の回)の空きは、見つからないか、すでに埋まっています';
     } else {
-      h += '<div class="nb show">この通知で届いた空き: ' + nAll + '枠(' + esc(hm(NOTIFY)) + 'の回)';
-      if (F_BACKUP) h += '<br>見つけた空きが見えるように、絞り込みを一時的に外しています <button class="sm" data-act="restoreF">元の絞り込みに戻す</button>';
-      else if (nShown < nAll) h += '<br>絞り込みで ' + (nAll - nShown) + ' 枠が隠れています(「すべて解除」で見えます)';
-      h += '</div>';
+      nb = 'この通知で届いた空き: <b>' + nAll + '枠</b>(' + esc(hm(NOTIFY)) + 'の回)';
+      if (F_BACKUP) nb += '<br>見つけた空きが見えるように、絞り込みを一時的に外しています <button class="sm" data-act="restoreF">元の絞り込みに戻す</button>';
+      else if (nShown < nAll) nb += '<br>絞り込みで ' + (nAll - nShown) + ' 枠が隠れています(「すべて解除」で見えます)';
     }
+    h += panel('通知から開きました', '「更新」を押すと、通常の表示に戻ります', nb, 'hot');
   }
 
   // 絞り込み
-  h += '<div class="box"><div class="tabs">' + SITES.map(function(s){
+  var fb = '<div class="tabs">' + SITES.map(function(s){
     return '<button class="' + (F.site === s[0] ? 'on' : '') + '" data-act="site" data-v="' + s[0] + '">' + s[1] + '</button>';
   }).join('') + '</div>';
-  h += '<div class="lbl">曜日(選ばなければ全部)<button class="sm" data-act="clr" data-v="wd">クリア</button></div><div class="row">' + WDN.map(function(w, i){
+  fb += '<div class="lbl">曜日(選ばなければ全部)<button class="sm" data-act="clr" data-v="wd">クリア</button></div><div class="row">' + WDN.map(function(w, i){
     return '<button class="' + (F.wd.indexOf(i) >= 0 ? 'on' : '') + '" data-act="wd" data-v="' + i + '">' + w + '</button>';
   }).join('') + '</div>';
-  h += '<div class="lbl">時間帯(開始時刻)<button class="sm" data-act="clr" data-v="tb">クリア</button></div><div class="row">' + TBS.map(function(t){
+  fb += '<div class="lbl">時間帯(開始時刻)<button class="sm" data-act="clr" data-v="tb">クリア</button></div><div class="row">' + TBS.map(function(t){
     return '<button class="' + (F.tb.indexOf(t[0]) >= 0 ? 'on' : '') + '" data-act="tb" data-v="' + t[0] + '">' + t[1] + '</button>';
   }).join('') + '</div>';
-  h += '<div class="lbl">施設(選ばなければ全部)<button class="sm" data-act="clr" data-v="fac">クリア</button></div><div class="row">' + facList.map(function(f){
+  fb += '<div class="lbl">施設(選ばなければ全部)<button class="sm" data-act="clr" data-v="fac">クリア</button></div><div class="row">' + facList.map(function(f){
     return '<button class="' + (F.fac.indexOf(f.name) >= 0 ? 'on' : '') + '" data-act="fac" data-v="' + esc(f.name) + '">' + esc(shortFac(f.name)) + '</button>';
   }).join('') + '</div>';
-  h += '<div class="row" style="margin-top:8px"><button class="sm" data-act="clr" data-v="all">すべて解除</button></div>';
-  h += '<div class="note">表示できるのは、巡回が集めた条件の範囲だけです。</div></div>';
+  fb += '<div class="row" style="margin-top:8px"><button class="sm" data-act="clr" data-v="all">すべて解除</button></div>';
+  fb += '<div class="note">表示できるのは、巡回が集めた条件の範囲だけです。</div>';
+  h += panel('絞り込み', 'ボタンで表示する空きを選べます', fb);
 
   // 件数と表示の切り替え
-  h += '<div class="sum">空き <b>' + nAct + '</b> 枠・' + days.length + ' 日' + (nGone ? '(埋まった ' + nGone + ' 枠・7日間)' : '') + '</div>';
-  h += '<div class="row" style="margin-top:6px"><button class="' + (MODE === 'cal' ? 'on' : '') + '" data-act="mode" data-v="cal">カレンダー</button>' +
+  var sumTxt = '空き <b>' + nAct + '</b> 枠・' + days.length + ' 日' + (nGone ? '(埋まった ' + nGone + ' 枠・7日間)' : '');
+  var lb = '';
+  lb += '<div class="row"><button class="' + (MODE === 'cal' ? 'on' : '') + '" data-act="mode" data-v="cal">カレンダー</button>' +
        '<button class="' + (MODE === 'list' ? 'on' : '') + '" data-act="mode" data-v="list">リスト</button></div>';
 
   if (MODE === 'list') {
     var all = {};
     Object.keys(byDay).concat(Object.keys(goneByDay)).forEach(function(d){ all[d] = true; });
-    Object.keys(all).sort().forEach(function(ds){ h += dayBlock(ds, byDay, goneByDay); });
-    if (!Object.keys(all).length) h += '<div class="box"><div class="note">条件に合う空きはありません</div></div>';
+    Object.keys(all).sort().forEach(function(ds){ lb += dayBlock(ds, byDay, goneByDay); });
+    if (!Object.keys(all).length) lb += '<div class="note">条件に合う空きはありません</div>';
   } else {
     // カレンダー: 今週の月曜から、監視している期間の最後の日(少なくとも30日先)の週の日曜まで
     var end = new Date(today); end.setDate(end.getDate() + 30);
@@ -402,7 +416,7 @@ function render(){
     if (lastS) { var ld = new Date(lastS + 'T00:00:00'); if (ld > end) end = ld; }
     end.setDate(end.getDate() + (7 - end.getDay()) % 7);
 
-    h += '<div class="cal">' + ['月','火','水','木','金','土','日'].map(function(w, i){
+    lb += '<div class="cal">' + ['月','火','水','木','金','土','日'].map(function(w, i){
       return '<div class="h' + (i === 5 ? ' sat' : i === 6 ? ' sun' : '') + '">' + w + '</div>';
     }).join('');
     for (var dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
@@ -429,15 +443,16 @@ function render(){
         if (order.length > 2) inner += '<span class="more">+' + (order.length - 2) + '</span>';
       }
       if (gl.length) inner += '<span class="g">埋' + gl.length + '</span>';
-      if (list.length || gl.length) h += '<button class="' + cls + '" data-act="day" data-v="' + ds + '">' + inner + '</button>';
-      else h += '<div class="' + cls + '">' + inner + '</div>';
+      if (list.length || gl.length) lb += '<button class="' + cls + '" data-act="day" data-v="' + ds + '">' + inner + '</button>';
+      else lb += '<div class="' + cls + '">' + inner + '</div>';
     }
-    h += '</div>';
-    h += '<div class="note">緑の日に空き、灰色の日に埋まった枠があります。茶色は、直前で予約できない日の空きです(通知も来ません)。日付をタップすると下に詳細が出ます。札の黄色い点は、24時間以内に見つかった空きです。</div>';
-    if (selDay) h += '<div class="box">' + dayBlock(selDay, byDay, goneByDay) + '</div>';
+    lb += '</div>';
+    lb += '<div class="note">緑の日に空き、灰色の日に埋まった枠があります。茶色は、直前で予約できない日の空きです(通知も来ません)。日付をタップすると下に詳細が出ます。札の黄色い点は、24時間以内に見つかった空きです。</div>';
   }
+  h += panel(MODE === 'list' ? '空きの一覧(リスト)' : '空きの一覧(カレンダー)', sumTxt, lb);
+  if (MODE !== 'list' && selDay) h += panel('選んだ日の詳細', 'カレンダーの日付をタップすると切り替わります', dayBlock(selDay, byDay, goneByDay));
 
-  h += '<div class="box" style="text-align:center"><button data-act="logout">別の合言葉を登録し直す</button></div>';
+  h += panel('ほかの操作', '', '<div style="text-align:center"><button data-act="logout">別の合言葉を登録し直す</button></div>');
   document.getElementById('app').innerHTML = h;
 }
 
