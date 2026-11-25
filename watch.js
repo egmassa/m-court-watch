@@ -1,4 +1,4 @@
-// Ver 3.10(共有の条件・施設一覧・府中の名前取り込み)
+// Ver 3.11(中学校など、予約できない直近の日は通知しない)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -23,6 +23,10 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
 // 設定画面の選択肢に出す施設の一覧。共有の条件で上書きする前の config.yml の施設を控えておく
 const CATALOG_NAMES = {};
 for (const id of ['mitaka', 'toei', 'fuchu']) CATALOG_NAMES[id] = ((cfg[id] || {}).facilities || []).map(f => f.name).filter(Boolean);
+// 施設ごとの「何日後から予約できるか」(config.yml の notify_min_days)。共有の条件で上書きする前に控える。
+// 予約できない直近の日の空きは、LINEに送らない(記録と一覧には残す)
+const LEAD = {};
+for (const id of ['mitaka', 'toei', 'fuchu']) for (const f of ((cfg[id] || {}).facilities || [])) if (f.name && Number(f.notify_min_days) > 0) LEAD[f.name] = Number(f.notify_min_days);
 // 友達が決めた共有の条件(fetch-conditions.js が GAS から取ったもの)があれば、それで上書きする。
 // 無い・読めない場合は config.yml のまま。施設の場所(room_id など)は config.yml の値を使う。
 (function applyShared() {
@@ -631,7 +635,7 @@ async function mirrorToGas(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.10');
+  console.log('Ver 3.11');
   const prevAll = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
   // 他のサイトの記録はそのまま残し、このサイトの分だけ入れ替える
   const others = {
@@ -664,6 +668,10 @@ async function mirrorToGas(extra = {}) {
       date_from: sec.date_from || '',
       facilities: (sec.facilities || []).filter(f => f.name && f.enabled !== false).map(f => f.name),
     };
+    // 予約できない直近の日数(画面で色を変えるのに使う)。該当する施設だけ入れる
+    const lead = {};
+    (sec.facilities || []).filter(f => f.name && f.enabled !== false && LEAD[f.name]).forEach(f => { lead[f.name] = LEAD[f.name]; });
+    if (Object.keys(lead).length) conditions[id].lead = lead;
   });
   // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
   const catalog = ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: CATALOG_NAMES[id].length ? CATALOG_NAMES[id] : ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) }));
@@ -719,8 +727,11 @@ async function mirrorToGas(extra = {}) {
 
   if (reset) log('基準をリセット: 今の空きをすべて通知します');
   const fresh = hits.filter(h => !prev.keys.includes(h.key));
+  // LINEに送るのは、予約できる日の空きだけ(今日から notify_min_days 日後以降)。予約できない直近の枠は、記録と一覧にだけ残す
+  const notifiable = h => h.date >= addDays(startStr, LEAD[h.facility] || 0);
+  const freshN = fresh.filter(notifiable);
 
-  log(`条件に合う空き: ${hits.length} 枠 / うち新規: ${fresh.length} 枠`);
+  log(`条件に合う空き: ${hits.length} 枠 / うち新規: ${fresh.length} 枠${freshN.length < fresh.length ? `(通知するのは ${freshN.length} 枠。予約できない直近の ${fresh.length - freshN.length} 枠は通知しません)` : ''}`);
   const all = group(hits), freshKeys = new Set(fresh.map(h => `${h.facility}|${h.date}|${h.time}`));
   const mark = g => freshKeys.has(`${g.facility}|${g.date}|${g.time}`) ? '🆕 ' : '';
   all.forEach(g => log(`${mark(g) || '   '}${g.facility} ${lineOf(g).slice(1)}`));
@@ -730,26 +741,26 @@ async function mirrorToGas(extra = {}) {
   const runAt = new Date().toISOString(); // この回の時刻(通知のリンクにも入れて、同じ回の枠を目印にする)
   const newReleases = fresh.map(h => ({ type: 'open', at: runAt, site: h.site || 'mitaka', facility: h.facility, date: h.date, time: h.time, court: h.court, key: h.key }));
 
-  if (fresh.length) {
+  if (freshN.length) {
     // ?openExternalBrowser=1 … LINE内ブラウザではなく、いつものブラウザ(Safariなど)で開かせるLINEの機能
     const ext = u => u + (u.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
-    const sitesInFresh = RUN.filter(s => fresh.some(h => h.site === s.mod.id)).map(s => s.mod);
+    const sitesInFresh = RUN.filter(s => freshN.some(h => h.site === s.mod.id)).map(s => s.mod);
     const viewUrl = pageUrl ? pageUrl.replace(/\/?$/, '/') + 'view/' : '';
     // 以前あった「今の空き一覧」(直下のページ)のリンクは、通知から外した(ページ自体は残してある)
     const links = (viewUrl ? `\n\n空き一覧(合言葉が必要)\n${viewUrl}?openExternalBrowser=1#n=${encodeURIComponent(runAt)}` : '') +
       sitesInFresh.map(m => `\n\n${m.name}の予約サイト\n${ext(m.bookUrl)}`).join('');
     let text;
-    if (fresh.length > LINE_MAX) {
+    if (freshN.length > LINE_MAX) {
       // 多いときは要約だけ(詳しくは一覧ページで)
       const cnt = {};
-      fresh.forEach(h => cnt[h.facility] = (cnt[h.facility] || 0) + 1);
-      const dates = fresh.map(h => h.date).sort();
-      text = `🎾 新しい空きが ${fresh.length}枠 出ました\n` +
+      freshN.forEach(h => cnt[h.facility] = (cnt[h.facility] || 0) + 1);
+      const dates = freshN.map(h => h.date).sort();
+      text = `🎾 新しい空きが ${freshN.length}枠 出ました\n` +
         Object.entries(cnt).map(([f, n]) => `${f} ${n}枠`).join('・') +
         `\n(${label(dates[0])}〜${label(dates[dates.length - 1])})` + links;
     } else {
       const byFac = {};
-      group(fresh).forEach(g => (byFac[g.facility] ||= []).push(lineOf(g)));
+      group(freshN).forEach(g => (byFac[g.facility] ||= []).push(lineOf(g)));
       text = '🎾 コートに空きが出ました\n\n' +
         Object.entries(byFac).map(([f, ls]) => `【${f}】\n${ls.join('\n')}`).join('\n\n') + links;
     }
@@ -771,7 +782,7 @@ async function mirrorToGas(extra = {}) {
   const month = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
   const prevLine = prev.line || {};
   if (quota && quota.reach == null && prev.line && prev.line.reach != null) quota.reach = prev.line.reach;
-  const line = quota ? { ...quota, month, error: lineError || (fresh.length ? null : (prevLine.month === month ? prevLine.error || null : null)) } : (prev.line || null);
+  const line = quota ? { ...quota, month, error: lineError || (freshN.length ? null : (prevLine.month === month ? prevLine.error || null : null)) } : (prev.line || null);
   if (quota) log(`LINE今月の使用数: ${quota.used}${quota.limit ? ' / ' + quota.limit : ''}通`);
   if (line && line.limit && line.used >= line.limit && !line.error) line.error = '今月のLINE無料枠を使い切りました。月末まで通知は届きません';
   if (line && line.limit && line.used < line.limit && /使い切りました|上限/.test(line.error || '') && !lineError) line.error = null;

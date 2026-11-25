@@ -1,4 +1,4 @@
-# Ver 3.10
+# Ver 3.11
 # テニスコート 空き監視の設定
 # 設定ページ(index.html)から保存されました。ここを直接書き換えてもOKです。
 
@@ -9,12 +9,16 @@ mitaka:
   facilities:
     - name: "第一中学校"
       room_id: 134
+      notify_min_days: 3    # 予約は3日後から。これより近い日の空きはLINEに送らない
     - name: "第四中学校"
       room_id: 141          # テニスコート(予約サイトの施設39・部屋141)
+      notify_min_days: 3    # 予約は3日後から。これより近い日の空きはLINEに送らない
     - name: "第六中学校"
       room_id: 144
+      notify_min_days: 3    # 予約は3日後から。これより近い日の空きはLINEに送らない
     - name: "第七中学校"
       room_id: 146          # テニスコート(予約サイトの施設42・部屋146)
+      notify_min_days: 3    # 予約は3日後から。これより近い日の空きはLINEに送らない
     - name: "大沢総合グラウンド"
       room_id: 24
       exclude_courts: [6]   # 監視しないコート番号

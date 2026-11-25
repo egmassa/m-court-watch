@@ -31,7 +31,8 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .cd{all:unset;box-sizing:border-box;min-height:62px;border-radius:8px;padding:3px;background:var(--bg);display:flex;flex-direction:column;gap:2px;min-width:0;border:1px solid transparent}
 .cd.has{background:var(--has);cursor:pointer}
 .cd.goneonly{background:var(--chip);cursor:pointer}
-.cd.has:hover,.cd.goneonly:hover,.cd.sel{border-color:var(--accent)}
+.cd.ubonly{background:#3b3226;cursor:pointer}
+.cd.has:hover,.cd.goneonly:hover,.cd.ubonly:hover,.cd.sel{border-color:var(--accent)}
 .cd.past{opacity:.4}
 .cd.blank{background:transparent}
 .cd .n{font-size:11px;color:var(--sub)}
@@ -40,6 +41,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .cd .b{font-size:10px;line-height:1.25;background:#5cc28a;color:#0c1f14;border-radius:4px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cd .b.fu{background:var(--fu);color:#fff}
 .cd .b.sb{background:var(--sb);color:#fff}
+.cd .b.ub{background:#6b5a48;color:#e6dac8}
 .cd .b.nwc{box-shadow:inset 0 0 0 2px #fff;font-weight:700}
 .cd .more{font-size:10px;color:var(--accent)}
 .cd .g{font-size:10px;color:var(--sub)}
@@ -55,6 +57,8 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .item{padding:7px 0;border-bottom:1px solid var(--line)}
 .item .fnd{font-size:11px;color:var(--sub);margin-left:8px}
 .item.nwr{box-shadow:inset 3px 0 0 #fff;padding-left:8px}
+.item.ub{color:var(--sub);box-shadow:inset 3px 0 0 #8a7556;padding-left:8px}
+.item .ubn{font-size:11px;color:#c9a96b;margin-left:8px}
 .item.gone{color:var(--sub);text-decoration:line-through}
 .item.gone .gt{text-decoration:none;font-size:11px;color:var(--err);margin-left:8px}
 .note{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
@@ -68,7 +72,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 <div id="err"></div>
 <div id="app"></div>
 <div style="margin:18px 0 8px;padding:12px;border:1px solid #333;border-radius:10px;text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.11</div>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.13</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -130,6 +134,16 @@ function openAtOf(x){ return DATA && DATA.openAt ? DATA.openAt[x.key] : null; }
 function isNew(x){ var a = openAtOf(x); return !!a && (Date.now() - new Date(a).getTime()) < 86400000; }
 function isNotify(x){ var a = openAtOf(x); return !!NOTIFY && !!a && a === NOTIFY; }
 function isMarkRun(x){ var run = NOTIFY || (DATA && DATA.runOpenAt); var a = openAtOf(x); return !!run && !!a && a === run; }
+// 予約できない直近の日(施設ごとに「◯日後から予約できる」。巡回が conditions.○○.lead に入れて送ってくる)
+var TODAYS = '';
+function leadDays(f){
+  var c = DATA && DATA.conditions;
+  if (!c) return 0;
+  for (var id in c) { var l = c[id] && c[id].lead; if (l && l[f]) return Number(l[f]) || 0; }
+  return 0;
+}
+function openFrom(f){ var d = new Date(TODAYS + 'T00:00:00'); d.setDate(d.getDate() + leadDays(f)); return dstr(d); }
+function isUb(x){ return leadDays(x.facility) > 0 && x.date < openFrom(x.facility); }
 function cmp(a, b){ return (a.time + a.court).localeCompare(b.time + b.court); }
 function bookLink(x){
   if (x.site === 'mitaka') {
@@ -253,6 +267,7 @@ function render(){
   notifyPrep();
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var todayS = dstr(today);
+  TODAYS = todayS;
   var start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   var startS = dstr(start);
 
@@ -359,19 +374,21 @@ function render(){
       var ds = dstr(dt), dow = dt.getDay(), list = byDay[ds] || [], gl = goneByDay[ds] || [];
       var label = (dt.getDate() === 1 || dt.getTime() === start.getTime()) ? (dt.getMonth() + 1) + '/' + dt.getDate() : String(dt.getDate());
       var cls = 'cd' + (dow === 6 ? ' sat' : '') + (dow === 0 ? ' sun' : '') + (HOL[ds] ? ' hol' : '') + (ds === todayS ? ' today' : '') +
-        (list.length ? ' has' : (gl.length ? ' goneonly' : '')) + (ds === selDay ? ' sel' : '') + (ds < todayS ? ' past' : '');
+        (list.length ? (list.some(function(x){ return !isUb(x); }) ? ' has' : ' ubonly') : (gl.length ? ' goneonly' : '')) + (ds === selDay ? ' sel' : '') + (ds < todayS ? ' past' : '');
       var inner = '<span class="n">' + label + '</span>';
       if (list.length) {
         var byF = {}, order = [];
         list.forEach(function(x){
-          if (!byF[x.facility]) { byF[x.facility] = { n: 0, site: x.site, nw: false, nn: false }; order.push(x.facility); }
+          if (!byF[x.facility]) { byF[x.facility] = { n: 0, site: x.site, nw: false, nn: false, ub: true }; order.push(x.facility); }
+          if (!isUb(x)) byF[x.facility].ub = false;
           byF[x.facility].n++;
           if (isMarkRun(x)) byF[x.facility].nw = true;
           if (isNew(x)) byF[x.facility].nn = true;
         });
+        order.sort(function(a, b){ return (byF[a].ub ? 1 : 0) - (byF[b].ub ? 1 : 0); });
         order.slice(0, 2).forEach(function(f){
           var o = byF[f];
-          inner += '<span class="b' + (o.site === 'fuchu' ? ' fu' : o.site === 'toei' ? ' sb' : '') + (o.nw ? ' nwc' : '') + '">' +
+          inner += '<span class="b' + (o.ub ? ' ub' : o.site === 'fuchu' ? ' fu' : o.site === 'toei' ? ' sb' : '') + (o.nw ? ' nwc' : '') + '">' +
             (o.nn ? '<i class="rn"></i>' : '') + esc(shortFac(f)) + (o.n > 1 ? ' ' + o.n : '') + '</span>';
         });
         if (order.length > 2) inner += '<span class="more">+' + (order.length - 2) + '</span>';
@@ -381,7 +398,7 @@ function render(){
       else h += '<div class="' + cls + '">' + inner + '</div>';
     }
     h += '</div>';
-    h += '<div class="note">緑の日に空き、灰色の日に埋まった枠があります。日付をタップすると下に詳細が出ます。札の黄色い点は、24時間以内に見つかった空きです。</div>';
+    h += '<div class="note">緑の日に空き、灰色の日に埋まった枠があります。茶色は、直前で予約できない日の空きです(通知も来ません)。日付をタップすると下に詳細が出ます。札の黄色い点は、24時間以内に見つかった空きです。</div>';
     if (selDay) h += '<div class="box">' + dayBlock(selDay, byDay, goneByDay) + '</div>';
   }
 
@@ -403,8 +420,10 @@ function dayBlock(ds, byDay, goneByDay){
       (g.act.length ? bookLink(g.act[0]) : '') + '</div>';
     g.act.sort(cmp).forEach(function(x){
       var at = openAtOf(x);
-      h += '<div class="item' + (isMarkRun(x) ? ' nwr' : '') + '">' + (isNew(x) ? '<i class="rn"></i>' : '') +
-        esc(x.time) + ' ・ ' + esc(x.court) + (at ? '<span class="fnd">' + esc(jst(at)) + ' ごろ見つかった</span>' : '') + '</div>';
+      var ub = isUb(x);
+      h += '<div class="item' + (ub ? ' ub' : '') + (isMarkRun(x) ? ' nwr' : '') + '">' + (isNew(x) ? '<i class="rn"></i>' : '') +
+        esc(x.time) + ' ・ ' + esc(x.court) + (ub ? '<span class="ubn">直前のため予約できません(予約は' + leadDays(x.facility) + '日前まで)</span>' : '') +
+        (at ? '<span class="fnd">' + esc(jst(at)) + ' ごろ見つかった</span>' : '') + '</div>';
     });
     g.gone.sort(cmp).forEach(function(x){
       h += '<div class="item gone">' + esc(x.time) + ' ・ ' + esc(x.court) + '<span class="gt">' + esc(jst(x.goneAt)) + ' ごろ埋まりました</span></div>';
