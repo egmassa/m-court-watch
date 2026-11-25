@@ -50,7 +50,7 @@ select{width:100%}
   </div>
 
   <div id="app" class="hidden"></div>
-  <div class="last" style="text-align:center;margin-top:16px">Ver 3.11</div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.12</div>
 </div>
 
 <script>
@@ -220,9 +220,11 @@ function render(){
   document.getElementById('app').innerHTML = h;
 }
 
+var FAC_ORDER = ['第一中学校','第四中学校','第六中学校','第七中学校','大沢総合グラウンド','新川テニスコート','大沢野川グラウンド'];
+function facOrd(n){ var i = FAC_ORDER.indexOf(n); return i < 0 ? 1000 : i; }
 function siteCard(id, name){
   var c = C[id];
-  var names = id === 'fuchu' ? FUCHU_LIST : (CATALOG[id] || []);
+  var names = id === 'fuchu' ? FUCHU_LIST : (CATALOG[id] || []).map(function(n, i){ return { n: n, i: i }; }).sort(function(a, b){ return facOrd(a.n) - facOrd(b.n) || a.i - b.i; }).map(function(o){ return o.n; });
   var h = '<div class="card"><h2><span>' + esc(name) + '</span>';
   h += '<label class="toggle"><input type="checkbox" data-act="enable" data-s="' + id + '"' + (c.enabled ? ' checked' : '') + '> 監視する</label></h2>';
 

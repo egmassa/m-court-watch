@@ -14,13 +14,13 @@ button.sm{font-size:12px;padding:2px 8px;min-height:24px;margin-left:6px;color:v
 input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#222;color:var(--fg);min-width:0;flex:1}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .box{background:var(--card);border-radius:10px;padding:10px;margin-top:10px}
-.pn{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden}
-.pnh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 10px;background:#262626;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;color:var(--accent);line-height:1.5}
+.pn{--pc:#9aa0a6;background:var(--card);border:2px solid var(--pc);border-radius:12px;margin-top:10px;overflow:hidden}
+.pc-state{--pc:#5aa9f0}.pc-filter{--pc:#b794f6}.pc-list{--pc:#3ec9a7}.pc-day{--pc:#ff9f5a}.pc-other{--pc:#9aa0a6}.pc-cond{--pc:#f58fb5}
+.pnh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 10px;background:#262626;background:color-mix(in srgb,var(--pc) 24%,#1a1a1a);border-bottom:2px solid var(--pc);font-size:13px;font-weight:700;color:var(--pc);line-height:1.5}
 .pnh small{font-weight:400;font-size:11px;color:var(--sub);text-align:right}
 .pnh small b{color:var(--fg)}
 .pnb{padding:10px}
-.pn.hot{border-color:var(--accent)}
-.pn.hot .pnh{background:#2c2a10}
+.pn.hot{--pc:#ffd43b}
 .bar{font-size:13px;line-height:1.5;position:sticky;top:0;z-index:5;margin-top:0;margin-bottom:8px;box-shadow:0 4px 10px rgba(0,0,0,.55)}
 .bar .pnb{padding:8px 10px}
 .bar .row{margin-top:6px}
@@ -104,8 +104,8 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 </div>
 <div id="err"></div>
 <div id="app"></div>
-<section class="pn" style="margin-top:14px"><div class="pnh"><span>条件の変更</span><small>別の画面に移ります</small></div><div class="pnb" style="text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div></section>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.17</div>
+<section class="pn pc-cond" style="margin-top:14px"><div class="pnh"><span>条件の変更</span><small>別の画面に移ります</small></div><div class="pnb" style="text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div></section>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.18</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -177,6 +177,8 @@ function leadDays(f){
 }
 function openFrom(f){ var d = new Date(TODAYS + 'T00:00:00'); d.setDate(d.getDate() + leadDays(f)); return dstr(d); }
 function isUb(x){ return leadDays(x.facility) > 0 && x.date < openFrom(x.facility); }
+var FAC_ORDER = ['第一中学校','第四中学校','第六中学校','第七中学校','大沢総合グラウンド','新川テニスコート','大沢野川グラウンド'];
+function facOrd(n){ var i = FAC_ORDER.indexOf(n); return i < 0 ? 1000 : i; }
 function panel(t, hint, body, cls){
   return '<section class="pn' + (cls ? ' ' + cls : '') + '"><div class="pnh"><span>' + t + '</span>' + (hint ? '<small>' + hint + '</small>' : '') + '</div><div class="pnb">' + body + '</div></section>';
 }
@@ -317,6 +319,12 @@ function render(){
     (DATA.slots || []).forEach(function(x){ if (F.site === 'all' || x.site === F.site) set[x.facility] = x.site; });
     facList = Object.keys(set).sort().map(function(n){ return { site: set[n], name: n }; });
   }
+  // ボタンの並び: サイトごとにまとめ、中学校は 1・4・6・7 の順(決めてある順。ないものは今までの順で後ろへ)
+  var siteRank = {};
+  facList.forEach(function(x, i){ if (!(x.site in siteRank)) siteRank[x.site] = i; });
+  facList = facList.map(function(x, i){ return { x: x, i: i }; }).sort(function(a, b){
+    return siteRank[a.x.site] - siteRank[b.x.site] || facOrd(a.x.name) - facOrd(b.x.name) || a.i - b.i;
+  }).map(function(o){ return o.x; });
 
   // 今の空き(今日以降)と、埋まった枠(7日間)を日ごとに
   var activeKeys = {}, byDay = {}, goneByDay = {}, nAct = 0, nGone = 0;
@@ -365,7 +373,7 @@ function render(){
   var h = panel('状態', '画面の上に固定されます',
     '<div class="top"><div>最終チェック <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b></div><button data-act="refresh">更新</button></div>' + ageWarn +
     '<div class="sub">新着 ' + (DATA.runOpenAt ? '<b>' + esc(jst(DATA.runOpenAt)) + '</b>(白い枠)' : 'なし') + ' ・ 空きの変化 <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b></div>' +
-    condBlock, 'bar');
+    condBlock, 'bar pc-state');
 
   // 通知のリンクから開いたとき
   if (NOTIFY) {
@@ -396,7 +404,7 @@ function render(){
   }).join('') + '</div>';
   fb += '<div class="row" style="margin-top:8px"><button class="sm" data-act="clr" data-v="all">すべて解除</button></div>';
   fb += '<div class="note">表示できるのは、巡回が集めた条件の範囲だけです。</div>';
-  h += panel('絞り込み', 'ボタンで表示する空きを選べます', fb);
+  h += panel('絞り込み', 'ボタンで表示する空きを選べます', fb, 'pc-filter');
 
   // 件数と表示の切り替え
   var sumTxt = '空き <b>' + nAct + '</b> 枠・' + days.length + ' 日' + (nGone ? '(埋まった ' + nGone + ' 枠・7日間)' : '');
@@ -449,10 +457,10 @@ function render(){
     lb += '</div>';
     lb += '<div class="note">緑の日に空き、灰色の日に埋まった枠があります。茶色は、直前で予約できない日の空きです(通知も来ません)。日付をタップすると下に詳細が出ます。札の黄色い点は、24時間以内に見つかった空きです。</div>';
   }
-  h += panel(MODE === 'list' ? '空きの一覧(リスト)' : '空きの一覧(カレンダー)', sumTxt, lb);
-  if (MODE !== 'list' && selDay) h += panel('選んだ日の詳細', 'カレンダーの日付をタップすると切り替わります', dayBlock(selDay, byDay, goneByDay));
+  h += panel(MODE === 'list' ? '空きの一覧(リスト)' : '空きの一覧(カレンダー)', sumTxt, lb, 'pc-list');
+  if (MODE !== 'list' && selDay) h += panel('選んだ日の詳細', 'カレンダーの日付をタップすると切り替わります', dayBlock(selDay, byDay, goneByDay), 'pc-day');
 
-  h += panel('ほかの操作', '', '<div style="text-align:center"><button data-act="logout">別の合言葉を登録し直す</button></div>');
+  h += panel('ほかの操作', '', '<div style="text-align:center"><button data-act="logout">別の合言葉を登録し直す</button></div>', 'pc-other');
   document.getElementById('app').innerHTML = h;
 }
 
