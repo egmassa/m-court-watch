@@ -14,8 +14,12 @@ button.sm{font-size:12px;padding:2px 8px;min-height:24px;margin-left:6px;color:v
 input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#222;color:var(--fg);min-width:0;flex:1}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .box{background:var(--card);border-radius:10px;padding:10px;margin-top:10px}
-.bar{background:var(--card);border-radius:10px;padding:10px;font-size:13px;line-height:1.7;position:sticky;top:0;z-index:5;margin-bottom:8px}
+.bar{background:var(--card);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.5;position:sticky;top:0;z-index:5;margin-bottom:8px}
 .bar .row{margin-top:6px}
+.bar .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bar .top button{min-height:30px;padding:3px 14px;font-size:13px}
+.bar .sub{font-size:12px;color:var(--sub);margin-top:2px}
+.bar .sub b{color:var(--fg);font-weight:600}
 .warn{color:var(--err)}
 .lbl{font-size:12px;color:var(--sub);margin:8px 0 4px;display:flex;align-items:center}
 .tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -47,8 +51,27 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 .cd .g{font-size:10px;color:var(--sub)}
 .rn{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px #0c1f14;margin-right:4px;vertical-align:middle}
 .hol{font-size:11px;color:var(--err);font-weight:400;margin-left:6px}
-.cond{font-size:12px;color:var(--sub);line-height:1.6;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.cond{font-size:12px;color:var(--sub);line-height:1.6;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
 .cond b{color:var(--fg)}
+.cond summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cond summary::-webkit-details-marker{display:none}
+.cond summary::before{content:'▸';font-size:11px;color:var(--sub);width:10px}
+.cond[open] summary::before{content:'▾'}
+.cond .pill{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:0 8px;color:var(--fg);font-size:11px;line-height:1.6}
+.cond .cb{margin-top:8px}
+.cond .cs{background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:8px}
+.cond .cs:first-child{margin-top:0}
+.cond .csh{font-size:13px;font-weight:700;color:var(--fg);margin-bottom:6px}
+.cond .kv{display:flex;gap:10px;align-items:flex-start;margin-top:6px}
+.cond .k{flex:0 0 38px;font-size:11px;color:var(--sub);padding-top:3px}
+.cond .v{flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;color:var(--fg);font-size:13px}
+.cond .chip{background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:1px 8px;font-size:12px;color:var(--fg)}
+.cond .chip small{color:#c9a96b;margin-left:4px;font-size:10px}
+.cond .wd{display:inline-flex;gap:3px}
+.cond .wd i{font-style:normal;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--chip);color:#666}
+.cond .wd i.on{background:var(--has);color:#cdf2da;font-weight:700}
+.cond .wd i.sat.on{color:#9cc4ff}.cond .wd i.sun.on{color:#ffaaaa}
+.cond .hn{font-size:11px;color:var(--sub);margin-left:2px}
 .day{font-weight:700;color:var(--accent);margin-top:12px}
 .fh{font-weight:700;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fh .sn{font-size:11px;color:var(--sub);font-weight:400}
@@ -72,7 +95,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 <div id="err"></div>
 <div id="app"></div>
 <div style="margin:18px 0 8px;padding:12px;border:1px solid #333;border-radius:10px;text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.13</div>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.15</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -86,7 +109,7 @@ function devId(){
   } catch (e) { return ''; }
 }
 var KEY = 'courtview_key', FKEY = 'courtview_f', MKEY = 'courtview_mode';
-var DATA = null, HOL = {}, selDay = null, MODE = 'cal', NOTIFY = null;
+var DATA = null, HOL = {}, selDay = null, MODE = 'cal', NOTIFY = null, COND_OPEN = false;
 var NOTIFY_DONE = false, F_BACKUP = null; // 通知から開いたとき、絞り込みを一時的に外したか(元の絞り込みを控えておく)
 var F = { site: 'all', wd: [], tb: [], fac: [] };
 try { var sf = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (sf) F = Object.assign(F, sf); } catch (e) {}
@@ -299,25 +322,34 @@ function render(){
   if (DATA.checkedAt && (Date.now() - new Date(DATA.checkedAt).getTime()) > 30 * 60e3) ageWarn = '<div class="warn">最終チェックから30分以上たっています。「更新」を押してください</div>';
   // 巡回の条件(最後の巡回で使った条件。空きがないときも、何を見ているかがわかる)
   var condNames = { mitaka: '三鷹', toei: '都立公園', fuchu: '府中' };
-  var condHtml = '';
+  var condHtml = '', condPills = '';
   if (DATA.conditions) {
     Object.keys(DATA.conditions).forEach(function(id){
       var c = DATA.conditions[id];
-      var parts = [(c.weekdays && c.weekdays.length ? c.weekdays.join('') : '曜日指定なし') + (c.exclude_holidays ? '(祝日除く)' : '')];
-      if (c.time_from) parts.push(c.time_from + '以降');
-      if (c.days_ahead) parts.push(c.days_ahead + '日先まで');
-      if (c.date_from) parts.push(c.date_from + '以降');
-      condHtml += '<div>' + esc(condNames[id] || id) + ': ' + esc((c.facilities || []).map(shortFac).join('・')) + ' / ' + esc(parts.join(' / ')) + '</div>';
+      var lead = c.lead || {};
+      var chips = (c.facilities || []).map(function(f){
+        return '<span class="chip">' + esc(shortFac(f)) + (lead[f] ? '<small>予約' + Number(lead[f]) + '日前まで</small>' : '') + '</span>';
+      }).join('');
+      var wset = {}; (c.weekdays || []).forEach(function(w){ wset[w] = true; });
+      var wd = ['月','火','水','木','金','土','日'].map(function(w){
+        return '<i class="' + (wset[w] ? 'on' : '') + (w === '土' ? ' sat' : w === '日' ? ' sun' : '') + '">' + w + '</i>';
+      }).join('');
+      condPills += '<span class="pill">' + esc(condNames[id] || id) + ' ' + (c.facilities || []).length + '施設</span>';
+      condHtml += '<div class="cs"><div class="csh">' + esc(condNames[id] || id) + '</div>' +
+        '<div class="kv"><span class="k">施設</span><span class="v">' + (chips || '-') + '</span></div>' +
+        '<div class="kv"><span class="k">曜日</span><span class="v"><span class="wd">' + wd + '</span>' + (c.exclude_holidays ? '<span class="hn">祝日は除く</span>' : '') + '</span></div>' +
+        '<div class="kv"><span class="k">時間</span><span class="v">' + (c.time_from ? esc(c.time_from) + ' 以降に始まる枠' : '指定なし') + '</span></div>' +
+        '<div class="kv"><span class="k">期間</span><span class="v">' + (c.date_from ? esc(c.date_from) + ' 以降 ' : '') + (c.days_ahead ? '今日から ' + Number(c.days_ahead) + ' 日先まで' : '指定なし') + '</span></div>' +
+        '</div>';
     });
   }
-  var condBlock = '<div class="cond"><b>今この条件で巡回中</b>(最後の巡回時点)' +
-    (condHtml || '<div>条件は次の巡回で表示されます</div>') + '</div>';
+  var condBlock = '<details class="cond"' + (COND_OPEN ? ' open' : '') + ' ontoggle="COND_OPEN = this.open"><summary>巡回の条件' + condPills + '</summary>' +
+    '<div class="cb">' + (condHtml || '<div>条件は次の巡回で表示されます</div>') + '<div style="margin-top:6px">最後の巡回で使った条件です</div></div></details>';
 
-  var h = '<div class="bar">' + condBlock +
-    '<div>最終チェック: <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b>(巡回した時刻)' + ageWarn + '</div>' +
-    (DATA.runOpenAt ? '<div>直近の巡回(' + esc(jst(DATA.checkedAt)) + ')で新しく見つかった空き: <b>' + esc(jst(DATA.runOpenAt)) + '</b>(白い枠)</div>' : '<div>直近の巡回(' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + ')では、新しく見つかった空きはありません</div>') +
-    '<div>空きの最終変化: <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b>(空きが増減した時刻)</div>' +
-    '<div class="row"><button data-act="refresh">更新</button></div>' +
+  var h = '<div class="bar">' +
+    '<div class="top"><div>最終チェック <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b></div><button data-act="refresh">更新</button></div>' + ageWarn +
+    '<div class="sub">新着 ' + (DATA.runOpenAt ? '<b>' + esc(jst(DATA.runOpenAt)) + '</b>(白い枠)' : 'なし') + ' ・ 空きの変化 <b>' + esc(DATA.updated ? jst(DATA.updated) : '不明') + '</b></div>' +
+    condBlock +
     '</div>';
 
   // 通知のリンクから開いたとき
