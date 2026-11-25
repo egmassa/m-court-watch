@@ -95,7 +95,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 <div id="err"></div>
 <div id="app"></div>
 <div style="margin:18px 0 8px;padding:12px;border:1px solid #333;border-radius:10px;text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.15</div>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.16</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -254,6 +254,9 @@ document.getElementById('app').onclick = function(e){
   else if (a === 'mode') { MODE = v; saveMode(); }
   else if (a === 'day') { selDay = v; }
   else if (a === 'refresh') {
+    // 更新は「いまの最新を見る」操作。通知で開いたときの表示(帯・目印・一時的に外した絞り込み)は終わりにする。URLはそのまま(ブラウザのリロードでは、通知の表示に戻る)
+    NOTIFY = null; NOTIFY_DONE = true;
+    if (F_BACKUP) { F = F_BACKUP; F_BACKUP = null; }
     var sv = null;
     try { sv = localStorage.getItem(KEY); } catch (e) {}
     if (sv) { document.getElementById('err').textContent = '更新中…'; load(sv, false); }
