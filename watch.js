@@ -1,4 +1,4 @@
-// Ver 3.11(中学校など、予約できない直近の日は通知しない)
+// Ver 3.12(前回の記録は GAS から読み、GAS に書く。リポジトリの state.json は使わない)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -11,7 +11,6 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
-const STATE_FILE = path.join(__dirname, 'state.json');
 // 設定ページのURL(GitHub Pages)。リポジトリ名から自動で作る
 const pageUrl = process.env.PAGE_URL || (process.env.GITHUB_REPOSITORY
   ? (([o, r]) => `https://${o.toLowerCase()}.github.io/${r}/`)(process.env.GITHUB_REPOSITORY.split('/'))
@@ -609,34 +608,69 @@ function group(list) {
 }
 const lineOf = g => `・${label(g.date)} ${g.time} ${g.courts.join('・')}`.trimEnd();
 
-// ---------------- GAS へのコピー(ステージ2: 並行書き込み) ----------------
-// state.json の最終内容を、Google Apps Script 経由で Drive にも保存する。
-// 失敗しても巡回は止めず、ログに残すだけ(GitHub 側の保存が本体)。
-async function mirrorToGas(extra = {}) {
+// ---------------- 前回の記録(GAS の Drive に置く) ----------------
+// 前回の記録は GAS から読み、今回の結果も GAS に書く(リポジトリの state.json は使わない)。
+// 読めないときは、空から始めると今の空きが全部「新しい空き」として通知されてしまうので、何もせずに止める。
+// 書けないときは、次回に同じ空きがまた通知されるので、リトライしてもだめならエラーで終わらせる(ログで気づけるように)。
+const STATE_VOLATILE = ['checkedAt', 'runOpenAt']; // 巡回ごとに決め直す項目は、前回の分を引き継がない
+let STATE_CUR = null;                              // いま持っている記録(読んだもの、または今回書き換えたもの)
+
+async function gasPost(body, tries = 3) {
+  const url = process.env.GAS_URL;
+  let lastErr = new Error('応答なし');
+  for (let i = 1; i <= tries; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        redirect: 'follow',
+      });
+      const txt = await res.text();
+      let j = null;
+      try { j = JSON.parse(txt); } catch (e) { /* 応答がJSONでない */ }
+      if (j && j.ok === true) return j;
+      lastErr = new Error(`応答が想定外(${res.status}) ${txt.slice(0, 120)}`);
+      if (j && j.error === 'invalid token') break; // 鍵が違うのは、やり直しても同じ
+    } catch (e) { lastErr = e; }
+    if (i < tries) await sleep(3000 * i);
+  }
+  throw lastErr;
+}
+
+async function loadState() {
   const url = process.env.GAS_URL, token = process.env.GAS_WRITE_TOKEN;
-  if (!url || !token) { log('GASへのコピー: 設定がないのでスキップ'); return; }
+  if (!url || !token) throw new Error('GAS_URL / GAS_WRITE_TOKEN の設定がありません');
+  const j = await gasPost({ action: 'getState', token });
+  if (!j.exists) {
+    if (process.env.ALLOW_EMPTY_STATE === 'true') { log('前回の記録がまだありません(空から始めます)'); return { keys: [] }; }
+    throw new Error('前回の記録が GAS に見つかりません。空から始めると今の空きが全部「新しい空き」として通知されるため、止めました(初めて動かすときだけ、ALLOW_EMPTY_STATE=true を付けます)');
+  }
+  const d = j.data || {};
+  STATE_VOLATILE.forEach(k => { delete d[k]; });
+  return d;
+}
+
+// 記録を GAS に保存する。extra: 今回の巡回で決まる項目(runOpenAt や、画面に出す条件・施設の一覧)
+async function saveState(extra = {}) {
+  const token = process.env.GAS_WRITE_TOKEN;
   try {
-    const data = { ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')), checkedAt: new Date().toISOString(), ...extra }; // 巡回した時刻(extra: 今回の巡回で新しく見つかった時刻)
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, data }),
-      redirect: 'follow',
-    });
-    const txt = await res.text();
-    let ok = false;
-    try { ok = JSON.parse(txt).ok === true; } catch (e) { /* 応答がJSONでない */ }
-    log(ok ? 'GASへのコピー: 成功' : `GASへのコピー: 応答が想定外(${res.status}) ${txt.slice(0, 120)}`);
+    const data = { ...(STATE_CUR || {}), checkedAt: new Date().toISOString(), ...extra };
+    await gasPost({ token, data });
+    log('GASへの保存: 成功');
   } catch (e) {
-    log('GASへのコピー: 失敗(無視して続行)', e.message);
+    log('GASへの保存: 失敗 ' + e.message + '(次回の巡回で、同じ空きがもう一度通知されることがあります)');
+    process.exitCode = 1;
   }
 }
 
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.11');
-  const prevAll = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : { keys: [] };
+  console.log('Ver 3.12');
+  let prevAll;
+  try { prevAll = await loadState(); } catch (e) { log('前回の記録を読めません: ' + e.message); process.exit(1); }
+  STATE_CUR = prevAll;
   // 他のサイトの記録はそのまま残し、このサイトの分だけ入れ替える
   const others = {
     keys: (prevAll.keys || []).filter(k => !mine(k)),
@@ -675,7 +709,7 @@ async function mirrorToGas(extra = {}) {
   });
   // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
   const catalog = ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: CATALOG_NAMES[id].length ? CATALOG_NAMES[id] : ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) }));
-  const writeState = st => fs.writeFileSync(STATE_FILE, JSON.stringify({
+  const writeState = st => { STATE_CUR = {
     updated: new Date().toISOString(),
     facilities: watchList,
     conditions,
@@ -685,14 +719,14 @@ async function mirrorToGas(extra = {}) {
     gone: [...others.gone, ...st.gone].sort((a, b) => (a.date + a.time + a.court).localeCompare(b.date + b.time + b.court)),
     line: st.line,
     releases: st.releases || prevAll.releases || [],
-  }, null, 1));
+  }; };
 
   if (!RUN.length) {
     // このサイトは監視オフ → 残っている記録を消して終わり
     log(`${ONLY || '全サイト'}: 監視オフ`);
     if (prev.keys.length || prev.slots.length || prev.gone.length) writeState({ keys: [], slots: [], gone: [], line: prevAll.line || null });
     // 監視オフでも、設定画面に出す条件と施設の一覧は GAS に送る(送らないと一覧が古いままになる)
-    await mirrorToGas({ conditions, catalog });
+    await saveState({ conditions, catalog });
     return;
   }
 
@@ -816,7 +850,7 @@ async function mirrorToGas(extra = {}) {
     JSON.stringify(slots) === JSON.stringify(prevSlots) &&
     JSON.stringify(line) === JSON.stringify(prev.line || null) &&
     JSON.stringify(gone) === JSON.stringify(prev.gone || []);
-  if (same && !reset) log('空き状況に変化なし(保存なし)');
+  if (same && !reset) log('空き状況に変化なし(記録の中身は変えません)');
   else writeState({ keys, slots, gone, line, releases });
-  await mirrorToGas({ runOpenAt: fresh.length ? runAt : null, conditions, catalog }); // 変化がない回も、最新の state.json を GAS に送る。今回の巡回で新しく見つかったときだけ runOpenAt を付ける
+  await saveState({ runOpenAt: fresh.length ? runAt : null, conditions, catalog }); // 変化がない回も、最新の記録を GAS に送る(巡回した時刻を残すため)。今回の巡回で新しく見つかったときだけ runOpenAt を付ける
 })();

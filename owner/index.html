@@ -153,7 +153,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   <div style="background:#2f6aa3;color:#fff;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;margin-bottom:10px">オーナー専用の画面</div>
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>オーナー操作 <span class="ver">Ver 3.4</span></h1>
+    <h1>オーナー操作 <span class="ver">Ver 3.5</span></h1>
   </header>
 
   <section class="card">
@@ -166,6 +166,14 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       <div class="qhelp">無料プランで今月LINEを送れる残りの通数です。全員送信は友だち1人につき1通と数えるので、1回の通知で友だちの人数分減ります。毎月1日に200通に戻ります。</div>
     </div>
     <div class="msg" id="lineAlert"></div>
+    <div id="lineLogin" hidden>
+      <div class="muted" style="margin:6px 0">LINEの今月の残りを見るには、オーナーの合言葉を入れてください(このブラウザに覚えておきます)。</div>
+      <div class="row" style="gap:6px;flex-wrap:nowrap">
+        <input type="password" id="ownPw" placeholder="オーナーの合言葉" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="ownGo" type="button" style="flex:none">表示</button>
+      </div>
+      <div class="msg" id="ownMsg"></div>
+    </div>
   </section>
 
   <section class="card">
@@ -233,6 +241,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   const OWNER = host, REPO = (location.hostname.endsWith('.github.io') && seg) ? seg : 'm-court-watch';
   const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
   const WF = 'watch.yml';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 
   const $ = id => document.getElementById(id);
   const store = {
@@ -296,7 +305,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     }
   }
 
-  // ---- LINE の今月の残り(state.json の line) ----
+  // ---- LINE の今月の残り(GAS に保存してある巡回の記録の line。オーナーの合言葉で読む) ----
   function renderLine(l) {
     if (!l || l.used == null) { $('lineStatus').innerHTML = ''; $('quotaBar').hidden = true; hideMsg('lineAlert'); lineInfo = null; return; }
     const thisMonth = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
@@ -320,15 +329,38 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     else if (rate >= 0.8) msg('lineAlert', `LINEの無料枠が残り ${l.limit - l.used}通です。全員送信は1回で人数分を使います。`, 'warn');
     else hideMsg('lineAlert');
   }
+  // 設定画面と同じ保存場所(同じブラウザなら、設定画面で入れた合言葉がそのまま使える)
+  const KEY = 'courtset_key';
+  const sha256 = t => crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(d => Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join(''));
+  async function ownerStatus(hash) {
+    const res = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'ownerStatus', hash }), redirect: 'follow' });
+    return res.json();
+  }
+  function showLineLogin(on) { $('lineLogin').hidden = !on; }
   async function loadLine() {
+    const saved = store.get(KEY);
+    if (!saved) { renderLine(null); showLineLogin(true); return; }
     try {
-      const { text } = await getFile('state.json');
-      renderLine(JSON.parse(text).line);
+      const r = await ownerStatus(saved);
+      if (r.ok) { showLineLogin(false); renderLine(r.line); return; }
+      // 保存してあった合言葉がオーナーのものでない(編集用など)ときは、入れ直してもらう
+      renderLine(null); showLineLogin(true);
     } catch (e) {
       $('lineStatus').innerHTML = '';
       $('quotaBar').hidden = true;
     }
   }
+  $('ownGo').onclick = async () => {
+    const pw = $('ownPw').value.trim();
+    if (!pw) return;
+    try {
+      const h = await sha256(pw);
+      const r = await ownerStatus(h);
+      if (!r.ok) { msg('ownMsg', 'オーナーの合言葉ではありません', 'ng'); return; }
+      store.set(KEY, h);
+      $('ownPw').value = ''; hideMsg('ownMsg'); showLineLogin(false); renderLine(r.line);
+    } catch (e) { msg('ownMsg', '確認できませんでした。しばらくしてからもう一度お試しください', 'ng'); }
+  };
   async function loadAll() { await Promise.all([loadRun(), loadLine()]); }
 
   // ---- 操作 ----
