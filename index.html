@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>空き一覧へ</title>
+<!-- Ver 1.0: ルートを開いたら、空き一覧(view/)へ移る。古いリンクの ?…#… はそのまま引き継ぐ -->
+<meta http-equiv="refresh" content="1; url=view/">
+<style>
+html,body{margin:0;background:#111;color:#eee;font-family:sans-serif}
+body{padding:40px 16px;text-align:center}
+a{color:#ffd23f;font-weight:700;font-size:18px}
+</style>
+</head>
+<body>
+<p>空き一覧に移ります…</p>
+<p><a href="view/" id="go">移らないときは、ここを押してください</a></p>
+<script>
+(function(){
+  var to = 'view/' + (location.search || '') + (location.hash || '');
+  var a = document.getElementById('go');
+  if (a) a.setAttribute('href', to);
+  location.replace(to);
+})();
+</script>
+</body>
+</html>
