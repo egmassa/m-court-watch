@@ -1,4 +1,4 @@
-// Ver 3.15(除外コート番号を設定画面から決められる。当日の空きはLINEに送らない)
+// Ver 3.16(履歴は利用日が過ぎた記録を外し、上限は4000件。除外コート番号を設定画面から決められる。当日の空きはLINEに送らない)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -73,6 +73,7 @@ const notifyMinDays = name => (name in LEAD) ? LEAD[name] : DEFAULT_NOTIFY_MIN_D
 const LINE_MAX = Number(cfg.line_max_items || 10);
 // 取られた枠を設定ページに取り消し線で残す時間
 const GONE_KEEP_HOURS = Number(cfg.gone_keep_hours || 24);
+const RELEASES_MAX = 4000; // 履歴(空きが出た・埋まった)の上限件数
 
 const log = (...a) => console.log(...a);
 const pad = n => String(n).padStart(2, '0');
@@ -676,7 +677,7 @@ async function saveState(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.15');
+  console.log('Ver 3.16');
   let prevAll;
   try { prevAll = await loadState(); } catch (e) { log('前回の記録を読めません: ' + e.message); process.exit(1); }
   STATE_CUR = prevAll;
@@ -857,12 +858,14 @@ async function saveState(extra = {}) {
   if (goneNow.length) log(`取られた枠: ${goneNow.length} 枠`);
   // 出た時刻と埋まった時刻を、同じ記録(releases)に並べて残す(空いていた期間を出すため)
   const goneReleases = goneNow.map(g => ({ type: 'gone', at: g.goneAt, site: g.site, facility: g.facility, date: g.date, time: g.time, court: g.court, key: g.key }));
-  const releases = [...(prevAll.releases || []), ...newReleases, ...goneReleases].slice(-2000);
+  // 利用日が過ぎた枠の記録は、もう使わないので外す(日付がない古い形式の記録は残す)。上限は新しい RELEASES_MAX 件
+  const releases = [...(prevAll.releases || []), ...newReleases, ...goneReleases].filter(r => !r.date || r.date >= startStr).slice(-RELEASES_MAX);
 
   const same = JSON.stringify(keys) === JSON.stringify([...(prev.keys || [])].sort()) && prev.slots &&
     JSON.stringify(slots) === JSON.stringify(prevSlots) &&
     JSON.stringify(line) === JSON.stringify(prev.line || null) &&
-    JSON.stringify(gone) === JSON.stringify(prev.gone || []);
+    JSON.stringify(gone) === JSON.stringify(prev.gone || []) &&
+    releases.length === (prevAll.releases || []).length; // 利用日が過ぎた記録を外したときも書き直す
   if (same && !reset) log('空き状況に変化なし(記録の中身は変えません)');
   else writeState({ keys, slots, gone, line, releases });
   await saveState({ runOpenAt: fresh.length ? runAt : null, conditions, catalog }); // 変化がない回も、最新の記録を GAS に送る(巡回した時刻を残すため)。今回の巡回で新しく見つかったときだけ runOpenAt を付ける
