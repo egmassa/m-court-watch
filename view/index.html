@@ -110,7 +110,7 @@ input{font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px 
 <div id="err"></div>
 <div id="app"></div>
 <section class="pn pc-cond" style="margin-top:14px"><div class="pnh"><span>条件の変更</span><small>別の画面に移ります</small></div><div class="pnb" style="text-align:center"><a href="../settings/" style="font-size:16px;font-weight:700;color:var(--accent)">監視の条件を変える</a><details style="margin-top:8px;text-align:left;font-size:13px;color:var(--sub)"><summary>説明</summary><p style="margin:6px 0 0">施設、曜日、時間、期間を決める画面です。変えた内容は、次の巡回から反映されます。</p></details></div></section>
-<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.21</div>
+<div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:12px">Ver 3.22</div>
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyLqv0r-_GbPBCpS6LxMdhgQwhka3iFRBPMqqyH_fDuKdG-qlFwuFd40B6u2rrpHczk/exec';
 function devId(){
@@ -185,6 +185,14 @@ function hasExcl(f){
   var c = (DATA && DATA.conditions) || {};
   for (var id in c) { var e = c[id] && c[id].exclude; if (e && e[f] && e[f].length) return true; }
   return false;
+}
+// 除外コートの説明(1行)。除外がなければ空
+function exNote(){
+  var c = (DATA && DATA.conditions) || {}, out = [];
+  for (var id in c) { var e = c[id] && c[id].exclude; if (e) Object.keys(e).forEach(function(n){ if (e[n] && e[n].length) out.push({ n: n, t: shortFac(n) + 'は' + e[n].join('・') + '番' }); }); }
+  if (!out.length) return '';
+  out.sort(function(a, b){ return facOrd(a.n) - facOrd(b.n); });
+  return '「除」は、見ないコートを決めている施設です。' + out.map(function(o){ return esc(o.t); }).join('、') + 'を除いています。そのコートの空きは、一覧にも通知にも出ません。';
 }
 function exMark(f){ return hasExcl(f) ? '<small class="exm" title="除外コートがあります">除</small>' : ''; }
 function openFrom(f){ var d = new Date(TODAYS + 'T00:00:00'); d.setDate(d.getDate() + leadDays(f)); return dstr(d); }
@@ -380,7 +388,7 @@ function render(){
     });
   }
   var condBlock = '<details class="cond"' + (COND_OPEN ? ' open' : '') + ' ontoggle="COND_OPEN = this.open"><summary>巡回の条件' + condPills + '<span class="tap op">タップで開く</span><span class="tap cl">タップで閉じる</span></summary>' +
-    '<div class="cb">' + (condHtml || '<div>条件は次の巡回で表示されます</div>') + '<div style="margin-top:6px">最後の巡回で使った条件です</div><button type="button" class="closebar" onclick="var d=this.closest(\'details\');d.open=false;d.scrollIntoView({block:\'nearest\'})">▴ 閉じる</button></div></details>';
+    '<div class="cb">' + (condHtml || '<div>条件は次の巡回で表示されます</div>') + '<div style="margin-top:6px">最後の巡回で使った条件です</div>' + (exNote() ? '<div style="margin-top:4px">' + exNote() + '</div>' : '') + '<button type="button" class="closebar" onclick="var d=this.closest(\'details\');d.open=false;d.scrollIntoView({block:\'nearest\'})">▴ 閉じる</button></div></details>';
 
   var h = panel('状態', '画面の上に固定されます',
     '<div class="top"><div>最終チェック <b>' + esc(DATA.checkedAt ? jst(DATA.checkedAt) : '不明') + '</b></div><button data-act="refresh">更新</button></div>' + ageWarn +
@@ -415,7 +423,7 @@ function render(){
     return '<button class="' + (F.fac.indexOf(f.name) >= 0 ? 'on' : '') + '" data-act="fac" data-v="' + esc(f.name) + '">' + esc(shortFac(f.name)) + exMark(f.name) + '</button>';
   }).join('') + '</div>';
   fb += '<div class="row" style="margin-top:8px"><button class="sm" data-act="clr" data-v="all">すべて解除</button></div>';
-  fb += '<div class="note">「除」は、除外しているコートがある施設です。表示できるのは、巡回が集めた条件の範囲だけです。</div>';
+  fb += (exNote() ? '<div class="note">' + exNote() + '</div>' : '') + '<div class="note">表示できるのは、巡回が集めた条件の範囲だけです。</div>';
   h += panel('絞り込み', 'ボタンで表示する空きを選べます', fb, 'pc-filter');
 
   // 件数と表示の切り替え
