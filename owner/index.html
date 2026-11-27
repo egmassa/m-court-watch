@@ -153,7 +153,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   <div style="background:#2f6aa3;color:#fff;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;margin-bottom:10px">オーナー専用の画面</div>
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>オーナー操作 <span class="ver">Ver 3.5</span></h1>
+    <h1>オーナー操作 <span class="ver">Ver 3.6</span></h1>
   </header>
 
   <section class="card">
@@ -166,6 +166,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       <div class="qhelp">無料プランで今月LINEを送れる残りの通数です。全員送信は友だち1人につき1通と数えるので、1回の通知で友だちの人数分減ります。毎月1日に200通に戻ります。</div>
     </div>
     <div class="msg" id="lineAlert"></div>
+    <details id="histBox" hidden style="margin-top:8px"><summary>履歴の件数</summary><div id="histBody" class="muted" style="margin-top:6px;line-height:1.7"></div></details>
     <div id="lineLogin" hidden>
       <div class="muted" style="margin:6px 0">LINEの今月の残りを見るには、オーナーの合言葉を入れてください(このブラウザに覚えておきます)。</div>
       <div class="row" style="gap:6px;flex-wrap:nowrap">
@@ -329,6 +330,22 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     else if (rate >= 0.8) msg('lineAlert', `LINEの無料枠が残り ${l.limit - l.used}通です。全員送信は1回で人数分を使います。`, 'warn');
     else hideMsg('lineAlert');
   }
+  // ---- 履歴(releases)の件数 ----
+  const esc = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function renderHist(h) {
+    if (!h) { $('histBox').hidden = true; return; }
+    const jt = iso => iso ? new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+    const nm = { open: '空きが出た', gone: '埋まった' };
+    const types = Object.keys(h.byType || {});
+    const rows = types.map(t => `<tr><td>${esc(nm[t] || t)}</td><td style="text-align:right">${h.byType[t]}件</td><td style="text-align:right">${(h.byType7 || {})[t] || 0}件</td></tr>`).join('');
+    $('histBody').innerHTML =
+      `<table style="border-collapse:collapse;width:100%"><tr><td></td><td style="text-align:right">全部</td><td style="text-align:right">直近7日</td></tr>${rows}` +
+      `<tr><td><b>合計</b></td><td style="text-align:right"><b>${h.releasesTotal}件</b> / 上限${h.releasesCap}</td><td></td></tr></table>` +
+      `<div>いちばん古い記録 ${jt(h.oldest)}・いちばん新しい ${jt(h.newest)}</div>` +
+      `<div>今の空き ${h.slotsNow}枠・取られた枠(巡回の記録 24時間) ${h.goneKept}枠・画面に出す取られた枠(7日) ${h.goneShown7}枠</div>` +
+      `<div>履歴の大きさ 約${Math.round(h.releasesBytes / 1024)}KB</div>`;
+    $('histBox').hidden = false;
+  }
   // 設定画面と同じ保存場所(同じブラウザなら、設定画面で入れた合言葉がそのまま使える)
   const KEY = 'courtset_key';
   const sha256 = t => crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(d => Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join(''));
@@ -342,7 +359,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     if (!saved) { renderLine(null); showLineLogin(true); return; }
     try {
       const r = await ownerStatus(saved);
-      if (r.ok) { showLineLogin(false); renderLine(r.line); return; }
+      if (r.ok) { showLineLogin(false); renderLine(r.line); renderHist(r.history); return; }
       // 保存してあった合言葉がオーナーのものでない(編集用など)ときは、入れ直してもらう
       renderLine(null); showLineLogin(true);
     } catch (e) {
@@ -358,7 +375,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
       const r = await ownerStatus(h);
       if (!r.ok) { msg('ownMsg', 'オーナーの合言葉ではありません', 'ng'); return; }
       store.set(KEY, h);
-      $('ownPw').value = ''; hideMsg('ownMsg'); showLineLogin(false); renderLine(r.line);
+      $('ownPw').value = ''; hideMsg('ownMsg'); showLineLogin(false); renderLine(r.line); renderHist(r.history);
     } catch (e) { msg('ownMsg', '確認できませんでした。しばらくしてからもう一度お試しください', 'ng'); }
   };
   async function loadAll() { await Promise.all([loadRun(), loadLine()]); }
