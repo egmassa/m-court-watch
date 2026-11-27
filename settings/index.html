@@ -27,6 +27,9 @@ select{width:100%}
 .msg.err{color:var(--err)}
 .msg.ok{color:var(--ok)}
 .note{font-size:12px;color:var(--sub);margin-top:6px}
+.exrow{display:flex;align-items:center;gap:8px;margin-top:6px}
+.exn{flex:1;font-size:14px}
+.exrow input{width:7em;font-size:16px;padding:6px 8px;border:1px solid var(--line,#ccc);border-radius:6px;background:transparent;color:inherit}
 .toggle{display:flex;align-items:center;gap:6px;font-size:14px}
 .hidden{display:none}
 .last{font-size:12px;color:var(--sub);margin-top:8px}
@@ -50,7 +53,7 @@ select{width:100%}
   </div>
 
   <div id="app" class="hidden"></div>
-  <div class="last" style="text-align:center;margin-top:16px">Ver 3.12</div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.13</div>
 </div>
 
 <script>
@@ -66,7 +69,7 @@ var OWNER = false; // オーナーの合言葉のときだけ上限を変えら�
 var PERIODS = [['d14','今日から14日'],['d30','今日から30日'],['next','来月'],['this','今月']];
 var TIMES = [['00:00','指定なし'],['09:00','9時以降'],['15:00','15時以降'],['16:00','16時以降'],['17:00','17時以降'],['18:00','18時以降'],['19:00','19時以降']];
 
-var C = null, D = null, BASE = null, SLOTS = [], CATALOG = {}, HOL = {}, HASH = null;
+var C = null, D = null, BASE = null, SLOTS = [], CATALOG = {}, EXDEF = {}, HOL = {}, HASH = null;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function pad(n){ return String(n).padStart(2, '0'); }
@@ -146,7 +149,7 @@ function openSettings(h, remember){
     ACCESS = r.access || [];
     SLOTS = r.slots || [];
     CATALOG = {};
-    (r.catalog || []).forEach(function(x){ CATALOG[x.site] = x.names || []; });
+    (r.catalog || []).forEach(function(x){ CATALOG[x.site] = x.names || []; if (x.exclude) EXDEF = x.exclude; });
     C = fromData(D);
     document.getElementById('loginErr').textContent = '';
     document.getElementById('login').classList.add('hidden');
@@ -222,6 +225,12 @@ function render(){
 
 var FAC_ORDER = ['第一中学校','第四中学校','第六中学校','第七中学校','大沢総合グラウンド','新川テニスコート','大沢野川グラウンド'];
 function facOrd(n){ var i = FAC_ORDER.indexOf(n); return i < 0 ? 1000 : i; }
+function exOf(n){ var m = C.mitaka.exclude_courts; if (m && Array.isArray(m[n])) return m[n]; return EXDEF[n] || []; }
+function parseCourts(t){
+  var out = [];
+  String(t).replace(/[０-９]/g, function(d){ return String.fromCharCode(d.charCodeAt(0) - 65248); }).split(/[^0-9]+/).forEach(function(x){ if (x === '') return; var v = parseInt(x, 10); if (v >= 1 && v <= 99 && out.indexOf(v) < 0) out.push(v); });
+  return out.sort(function(a, b){ return a - b; });
+}
 function siteCard(id, name){
   var c = C[id];
   var names = id === 'fuchu' ? FUCHU_LIST : (CATALOG[id] || []).map(function(n, i){ return { n: n, i: i }; }).sort(function(a, b){ return facOrd(a.n) - facOrd(b.n) || a.i - b.i; }).map(function(o){ return o.n; });
@@ -245,6 +254,13 @@ function siteCard(id, name){
     }
   }
 
+  if (id === 'mitaka' && c.facilities.length) {
+    h += '<div class="lbl">除外コート番号（見ないコート）</div>';
+    c.facilities.forEach(function(n){
+      h += '<div class="exrow"><span class="exn">' + esc(n) + '</span><input type="text" inputmode="numeric" placeholder="なし" data-act="excl" data-s="' + id + '" data-v="' + esc(n) + '" value="' + esc(exOf(n).join(',')) + '"></div>';
+    });
+    h += '<div class="note">番号は半角で、複数なら 4,5 のように区切ります。空なら、除外なしです。</div>';
+  }
   h += '<div class="lbl">曜日</div><div class="row">' + WD.map(function(w){
     return '<button class="' + (c.weekdays.indexOf(w) >= 0 ? 'on' : '') + '" data-act="wd" data-s="' + id + '" data-v="' + w + '">' + w + '</button>';
   }).join('') + '</div>';
@@ -295,6 +311,7 @@ document.getElementById('app').onchange = function(e){
   else if (a === 'time') C[s].time_from = t.value;
   else if (a === 'period') C[s].period = pFrom(t.value);
   else if (a === 'lim') CAP[s] = parseInt(t.value, 10);
+  else if (a === 'excl') { var m = C.mitaka.exclude_courts = C.mitaka.exclude_courts || {}; m[t.getAttribute('data-v')] = parseCourts(t.value); }
   msg('');
   render();
 };
@@ -315,6 +332,7 @@ function save(){
   SITES.forEach(function(s){
     var c = C[s[0]];
     data[s[0]] = { enabled: !!c.enabled, facilities: c.facilities.slice(), weekdays: c.weekdays.slice(), exclude_holidays: !!c.exclude_holidays, time_from: c.time_from, period: c.period };
+    if (s[0] === 'mitaka') { data.mitaka.exclude_courts = {}; c.facilities.forEach(function(n){ data.mitaka.exclude_courts[n] = exOf(n).slice(); }); }
   });
   msg('保存しています…');
   var body = { action: 'saveConditions', hash: HASH, data: data, baseUpdatedAt: BASE };

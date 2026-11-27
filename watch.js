@@ -1,4 +1,4 @@
-// Ver 3.13(当日の空きはLINEに送らない。施設ごとに notify_min_days で変えられる)
+// Ver 3.14(除外コート番号を設定画面から決められる。当日の空きはLINEに送らない)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -22,6 +22,9 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
 // 設定画面の選択肢に出す施設の一覧。共有の条件で上書きする前の config.yml の施設を控えておく
 const CATALOG_NAMES = {};
 for (const id of ['mitaka', 'toei', 'fuchu']) CATALOG_NAMES[id] = ((cfg[id] || {}).facilities || []).map(f => f.name).filter(Boolean);
+// 除外コート番号の初期値(config.yml のもの。設定画面に「いまの値」として出す)
+const EXCL_DEFAULT = {};
+for (const f of ((cfg.mitaka || {}).facilities || [])) if (f.name) EXCL_DEFAULT[f.name] = (f.exclude_courts || []).map(Number).filter(Number.isInteger);
 // 施設ごとの「今日から何日後以降の空きだけ通知するか」(config.yml の notify_min_days。0 なら当日も通知)。共有の条件で上書きする前に控える。
 // 書いていない施設は、当日の空きを通知しない(1)。近すぎる日の空きは、LINEに送らない(記録と一覧には残す)
 const LEAD = {};
@@ -45,6 +48,10 @@ const notifyMinDays = name => (name in LEAD) ? LEAD[name] : DEFAULT_NOTIFY_MIN_D
       if (missing.length && id !== 'fuchu') console.log(`${id}: config.yml に無い施設は無視します: ${missing.join('・')}`);
       const pick = n => byName.get(n) || (id === 'fuchu' ? { name: n } : null);
       let facs = wanted.map(pick).filter(Boolean);
+      // 設定画面で決めた除外コート番号(施設ごと)。決めていない施設は config.yml のまま
+      if (id === 'mitaka' && s.exclude_courts && typeof s.exclude_courts === 'object') {
+        facs = facs.map(f => Array.isArray(s.exclude_courts[f.name]) ? Object.assign({}, f, { exclude_courts: s.exclude_courts[f.name].map(Number).filter(Number.isInteger) }) : f);
+      }
       const maxN = id === 'toei' ? (sh.limits && sh.limits.toei_max) : id === 'fuchu' ? (sh.limits && sh.limits.fuchu_max) : null;
       if (maxN && facs.length > maxN) { console.log(`${id}: 上限 ${maxN} を超えているので先頭 ${maxN} 件だけ見ます`); facs = facs.slice(0, maxN); }
       Object.assign(base, {
@@ -669,7 +676,7 @@ async function saveState(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.13');
+  console.log('Ver 3.14');
   let prevAll;
   try { prevAll = await loadState(); } catch (e) { log('前回の記録を読めません: ' + e.message); process.exit(1); }
   STATE_CUR = prevAll;
@@ -710,7 +717,7 @@ async function saveState(extra = {}) {
     if (Object.keys(lead).length) conditions[id].lead = lead;
   });
   // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
-  const catalog = ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: CATALOG_NAMES[id].length ? CATALOG_NAMES[id] : ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) }));
+  const catalog = ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: CATALOG_NAMES[id].length ? CATALOG_NAMES[id] : ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) , ...(id === 'mitaka' ? { exclude: EXCL_DEFAULT } : {}) }));
   const writeState = st => { STATE_CUR = {
     updated: new Date().toISOString(),
     facilities: watchList,

@@ -1,4 +1,4 @@
-// Ver 3.1
+// Ver 3.2
 // 友達が決めた条件を GAS から取り、巡回が読むファイルに書く。
 // 失敗しても巡回は止めない(その場合は config.yml の値で動く)。
 const fs = require('fs');
@@ -52,6 +52,7 @@ function periodOf(p, today) {
         days_ahead: per.days_ahead,
         date_from: per.date_from,
       };
+      if (id === 'mitaka' && s.exclude_courts && typeof s.exclude_courts === 'object') result[id].exclude_courts = s.exclude_courts;
     }
     fs.writeFileSync(out, JSON.stringify(result));
     console.log('共有の条件を取り込みました');
