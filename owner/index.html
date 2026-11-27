@@ -153,7 +153,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
   <div style="background:#2f6aa3;color:#fff;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;margin-bottom:10px">オーナー専用の画面</div>
   <header>
     <div class="ball" aria-hidden="true"></div>
-    <h1>オーナー操作 <span class="ver">Ver 3.6</span></h1>
+    <h1>オーナー操作 <span class="ver">Ver 3.7</span></h1>
   </header>
 
   <section class="card">
@@ -341,6 +341,7 @@ body.notoken .needtok::before{content:"🔒 ";font-size:12px}
     $('histBody').innerHTML =
       `<table style="border-collapse:collapse;width:100%"><tr><td></td><td style="text-align:right">全部</td><td style="text-align:right">直近7日</td></tr>${rows}` +
       `<tr><td><b>合計</b></td><td style="text-align:right"><b>${h.releasesTotal}件</b> / 上限${h.releasesCap}</td><td></td></tr></table>` +
+      (() => { const o = h.byTypeOld || {}, n = Object.keys(o).reduce((a, k) => a + o[k], 0); return `<div>利用日が過ぎた記録（もう意味がない）<b>${n}件</b>` + (n ? '（' + Object.keys(o).map(k => (nm[k] || k) + ' ' + o[k]).join('・') + '）' : '') + `<br>いま意味のある記録 <b>${h.releasesTotal - n}件</b></div>`; })() +
       `<div>いちばん古い記録 ${jt(h.oldest)}・いちばん新しい ${jt(h.newest)}</div>` +
       `<div>今の空き ${h.slotsNow}枠・取られた枠(巡回の記録 24時間) ${h.goneKept}枠・画面に出す取られた枠(7日) ${h.goneShown7}枠</div>` +
       `<div>履歴の大きさ 約${Math.round(h.releasesBytes / 1024)}KB</div>`;
