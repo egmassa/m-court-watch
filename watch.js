@@ -1,4 +1,4 @@
-// Ver 3.14(除外コート番号を設定画面から決められる。当日の空きはLINEに送らない)
+// Ver 3.15(除外コート番号を設定画面から決められる。当日の空きはLINEに送らない)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -676,7 +676,7 @@ async function saveState(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.14');
+  console.log('Ver 3.15');
   let prevAll;
   try { prevAll = await loadState(); } catch (e) { log('前回の記録を読めません: ' + e.message); process.exit(1); }
   STATE_CUR = prevAll;
@@ -715,6 +715,10 @@ async function saveState(extra = {}) {
     const lead = {};
     (sec.facilities || []).filter(f => f.name && f.enabled !== false && LEAD[f.name] > 0).forEach(f => { lead[f.name] = LEAD[f.name]; });
     if (Object.keys(lead).length) conditions[id].lead = lead;
+    // 除外コートがある施設(画面で「除」のマークを出すのに使う)
+    const excl = {};
+    (sec.facilities || []).filter(f => f.name && f.enabled !== false && (f.exclude_courts || []).length).forEach(f => { excl[f.name] = f.exclude_courts.map(Number); });
+    if (Object.keys(excl).length) conditions[id].exclude = excl;
   });
   // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
   const catalog = ['mitaka', 'toei', 'fuchu'].map(id => ({ site: id, names: CATALOG_NAMES[id].length ? CATALOG_NAMES[id] : ((cfg[id] || (id === 'mitaka' ? legacyMitaka : null) || {}).facilities || []).map(f => f.name).filter(Boolean) , ...(id === 'mitaka' ? { exclude: EXCL_DEFAULT } : {}) }));
