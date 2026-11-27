@@ -53,7 +53,7 @@ select{width:100%}
   </div>
 
   <div id="app" class="hidden"></div>
-  <div class="last" style="text-align:center;margin-top:16px">Ver 3.13</div>
+  <div class="last" style="text-align:center;margin-top:16px">Ver 3.14</div>
 </div>
 
 <script>
@@ -69,7 +69,7 @@ var OWNER = false; // オーナーの合言葉のときだけ上限を変えら�
 var PERIODS = [['d14','今日から14日'],['d30','今日から30日'],['next','来月'],['this','今月']];
 var TIMES = [['00:00','指定なし'],['09:00','9時以降'],['15:00','15時以降'],['16:00','16時以降'],['17:00','17時以降'],['18:00','18時以降'],['19:00','19時以降']];
 
-var C = null, D = null, BASE = null, SLOTS = [], CATALOG = {}, EXDEF = {}, HOL = {}, HASH = null;
+var C = null, D = null, BASE = null, SLOTS = [], CATALOG = {}, EXDEF = null, HOL = {}, HASH = null;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function pad(n){ return String(n).padStart(2, '0'); }
@@ -150,6 +150,7 @@ function openSettings(h, remember){
     SLOTS = r.slots || [];
     CATALOG = {};
     (r.catalog || []).forEach(function(x){ CATALOG[x.site] = x.names || []; if (x.exclude) EXDEF = x.exclude; });
+    if (!(r.catalog || []).some(function(x){ return x.exclude; })) EXDEF = null;
     C = fromData(D);
     document.getElementById('loginErr').textContent = '';
     document.getElementById('login').classList.add('hidden');
@@ -225,7 +226,8 @@ function render(){
 
 var FAC_ORDER = ['第一中学校','第四中学校','第六中学校','第七中学校','大沢総合グラウンド','新川テニスコート','大沢野川グラウンド'];
 function facOrd(n){ var i = FAC_ORDER.indexOf(n); return i < 0 ? 1000 : i; }
-function exOf(n){ var m = C.mitaka.exclude_courts; if (m && Array.isArray(m[n])) return m[n]; return EXDEF[n] || []; }
+// 保存済み → 巡回から受け取った初期値 → どちらも無ければ null(未取得)
+function exOf(n){ var m = C.mitaka.exclude_courts; if (m && Array.isArray(m[n])) return m[n]; if (EXDEF && Array.isArray(EXDEF[n])) return EXDEF[n]; return EXDEF ? [] : null; }
 function parseCourts(t){
   var out = [];
   String(t).replace(/[０-９]/g, function(d){ return String.fromCharCode(d.charCodeAt(0) - 65248); }).split(/[^0-9]+/).forEach(function(x){ if (x === '') return; var v = parseInt(x, 10); if (v >= 1 && v <= 99 && out.indexOf(v) < 0) out.push(v); });
@@ -256,9 +258,11 @@ function siteCard(id, name){
 
   if (id === 'mitaka' && c.facilities.length) {
     h += '<div class="lbl">除外コート番号（見ないコート）</div>';
-    c.facilities.forEach(function(n){
-      h += '<div class="exrow"><span class="exn">' + esc(n) + '</span><input type="text" inputmode="numeric" placeholder="なし" data-act="excl" data-s="' + id + '" data-v="' + esc(n) + '" value="' + esc(exOf(n).join(',')) + '"></div>';
+    c.facilities.slice().sort(function(a, b){ return facOrd(a) - facOrd(b); }).forEach(function(n){
+      var ev = exOf(n);
+      h += '<div class="exrow"><span class="exn">' + esc(n) + '</span><input type="text" inputmode="numeric" placeholder="' + (ev === null ? '未取得' : 'なし') + '" data-act="excl" data-s="' + id + '" data-v="' + esc(n) + '" value="' + esc((ev || []).join(',')) + '"></div>';
     });
+    if (!EXDEF) h += '<div class="note" style="color:#c92a2a">いまの除外コートは、次の巡回のあとに表示されます。それまでは、触っていない施設の除外は変わりません（巡回は今の設定のままです）。</div>';
     h += '<div class="note">番号は半角で、複数なら 4,5 のように区切ります。空なら、除外なしです。</div>';
   }
   h += '<div class="lbl">曜日</div><div class="row">' + WD.map(function(w){
@@ -332,7 +336,7 @@ function save(){
   SITES.forEach(function(s){
     var c = C[s[0]];
     data[s[0]] = { enabled: !!c.enabled, facilities: c.facilities.slice(), weekdays: c.weekdays.slice(), exclude_holidays: !!c.exclude_holidays, time_from: c.time_from, period: c.period };
-    if (s[0] === 'mitaka') { data.mitaka.exclude_courts = {}; c.facilities.forEach(function(n){ data.mitaka.exclude_courts[n] = exOf(n).slice(); }); }
+    if (s[0] === 'mitaka') { data.mitaka.exclude_courts = {}; c.facilities.forEach(function(n){ var e = exOf(n); if (e) data.mitaka.exclude_courts[n] = e.slice(); }); }
   });
   msg('保存しています…');
   var body = { action: 'saveConditions', hash: HASH, data: data, baseUpdatedAt: BASE };
