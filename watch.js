@@ -1,4 +1,4 @@
-// Ver 3.12(前回の記録は GAS から読み、GAS に書く。リポジトリの state.json は使わない)
+// Ver 3.13(当日の空きはLINEに送らない。施設ごとに notify_min_days で変えられる)
 // テニスコート 空き監視スクリプト(GitHub Actions 用)
 //   三鷹市   … コートチェッカー(mitaka-tennis-checker.user.js)と同じデータ
 //               https://yoyaku-mitaka.jp/reservation/room-data/{roomId}/month?year=&month=
@@ -22,10 +22,12 @@ const cfg = yaml.load(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8'
 // 設定画面の選択肢に出す施設の一覧。共有の条件で上書きする前の config.yml の施設を控えておく
 const CATALOG_NAMES = {};
 for (const id of ['mitaka', 'toei', 'fuchu']) CATALOG_NAMES[id] = ((cfg[id] || {}).facilities || []).map(f => f.name).filter(Boolean);
-// 施設ごとの「何日後から予約できるか」(config.yml の notify_min_days)。共有の条件で上書きする前に控える。
-// 予約できない直近の日の空きは、LINEに送らない(記録と一覧には残す)
+// 施設ごとの「今日から何日後以降の空きだけ通知するか」(config.yml の notify_min_days。0 なら当日も通知)。共有の条件で上書きする前に控える。
+// 書いていない施設は、当日の空きを通知しない(1)。近すぎる日の空きは、LINEに送らない(記録と一覧には残す)
 const LEAD = {};
-for (const id of ['mitaka', 'toei', 'fuchu']) for (const f of ((cfg[id] || {}).facilities || [])) if (f.name && Number(f.notify_min_days) > 0) LEAD[f.name] = Number(f.notify_min_days);
+for (const id of ['mitaka', 'toei', 'fuchu']) for (const f of ((cfg[id] || {}).facilities || [])) if (f.name && f.notify_min_days != null && Number.isFinite(Number(f.notify_min_days))) LEAD[f.name] = Math.max(0, Number(f.notify_min_days));
+const DEFAULT_NOTIFY_MIN_DAYS = 1;
+const notifyMinDays = name => (name in LEAD) ? LEAD[name] : DEFAULT_NOTIFY_MIN_DAYS;
 // 友達が決めた共有の条件(fetch-conditions.js が GAS から取ったもの)があれば、それで上書きする。
 // 無い・読めない場合は config.yml のまま。施設の場所(room_id など)は config.yml の値を使う。
 (function applyShared() {
@@ -667,7 +669,7 @@ async function saveState(extra = {}) {
 // ---------------- メイン ----------------
 (async () => {
   const reset = process.env.RESET === 'true';
-  console.log('Ver 3.12');
+  console.log('Ver 3.13');
   let prevAll;
   try { prevAll = await loadState(); } catch (e) { log('前回の記録を読めません: ' + e.message); process.exit(1); }
   STATE_CUR = prevAll;
@@ -704,7 +706,7 @@ async function saveState(extra = {}) {
     };
     // 予約できない直近の日数(画面で色を変えるのに使う)。該当する施設だけ入れる
     const lead = {};
-    (sec.facilities || []).filter(f => f.name && f.enabled !== false && LEAD[f.name]).forEach(f => { lead[f.name] = LEAD[f.name]; });
+    (sec.facilities || []).filter(f => f.name && f.enabled !== false && LEAD[f.name] > 0).forEach(f => { lead[f.name] = LEAD[f.name]; });
     if (Object.keys(lead).length) conditions[id].lead = lead;
   });
   // 設定画面で選べる施設の一覧(監視オフの施設も含む。config.yml の名前そのまま)
@@ -761,11 +763,11 @@ async function saveState(extra = {}) {
 
   if (reset) log('基準をリセット: 今の空きをすべて通知します');
   const fresh = hits.filter(h => !prev.keys.includes(h.key));
-  // LINEに送るのは、予約できる日の空きだけ(今日から notify_min_days 日後以降)。予約できない直近の枠は、記録と一覧にだけ残す
-  const notifiable = h => h.date >= addDays(startStr, LEAD[h.facility] || 0);
+  // LINEに送るのは、今日から notify_min_days 日後以降の空きだけ(書いていない施設は、当日は送らない)。近すぎる枠は、記録と一覧にだけ残す
+  const notifiable = h => h.date >= addDays(startStr, notifyMinDays(h.facility));
   const freshN = fresh.filter(notifiable);
 
-  log(`条件に合う空き: ${hits.length} 枠 / うち新規: ${fresh.length} 枠${freshN.length < fresh.length ? `(通知するのは ${freshN.length} 枠。予約できない直近の ${fresh.length - freshN.length} 枠は通知しません)` : ''}`);
+  log(`条件に合う空き: ${hits.length} 枠 / うち新規: ${fresh.length} 枠${freshN.length < fresh.length ? `(通知するのは ${freshN.length} 枠。当日など近すぎる ${fresh.length - freshN.length} 枠は通知しません)` : ''}`);
   const all = group(hits), freshKeys = new Set(fresh.map(h => `${h.facility}|${h.date}|${h.time}`));
   const mark = g => freshKeys.has(`${g.facility}|${g.date}|${g.time}`) ? '🆕 ' : '';
   all.forEach(g => log(`${mark(g) || '   '}${g.facility} ${lineOf(g).slice(1)}`));
